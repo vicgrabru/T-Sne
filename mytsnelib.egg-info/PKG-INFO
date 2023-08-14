@@ -1,0 +1,7 @@
+Metadata-Version: 2.1
+Name: mytsnelib
+Version: 0.1.0
+Summary: A library that implements the T-Sne algorithm
+Author: Victor Gravan Bru
+License: MIT
+License-File: LICENSE
