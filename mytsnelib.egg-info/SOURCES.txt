@@ -2,7 +2,9 @@ LICENSE
 README.md
 setup.py
 mytsnelib/__init__.py
+mytsnelib/distances.py
 mytsnelib/functions.py
+mytsnelib/utils.py
 mytsnelib.egg-info/PKG-INFO
 mytsnelib.egg-info/SOURCES.txt
 mytsnelib.egg-info/dependency_links.txt
