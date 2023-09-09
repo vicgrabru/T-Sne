@@ -1,14 +1,31 @@
-from sklearn.manifold import TSNE
+import sklearn.manifold as manif
+import sklearn.manifold._utils as ut
+
 import numpy as np
-import distances as dist
+from numpy import random
+import similarities
+
+
+def joint_probabilities(distances):
+    
+
+
+    return 0
+
+def joint_probabilities_nn(distances):
+
+
+
+    return 0
 
 
 def TSne(X) :
-    distances = dist.euclidean_distance(X)
-    max_dist = np.max(distances)
-    prob_dist = np.absolute(np.ones(shape=distances.shape) - distances/max_dist)
+    distances = similarities.euclidean_distance(X)
     
+    probabilities = joint_probabilities(distances)
     
+    ut._binary_search_perplexity(distances, 30)
+
     return 0
 
 
@@ -25,9 +42,19 @@ def suma(int1: int, int2: int) -> int:
     return int1 + int2
 """
 
-
-
 """"
+1.- calcular distancias entre puntos
+2.- obtener la distribucion de probabilidad condicional para cada pareja de puntos (p_i|j, p_j|i)
+3.- crear espacio de menos dimensiones (misma cantidad de entradas)
+4.- obtener la distribucion de probabilidad del nuevo espacio (q)
+5.- calcular la divergencia kullback-leibler entre p y q para cada par de puntos
+6.- repetir desde el paso 3 (cambiando las posiciones de los puntos segun la divergencia) para disminuir la divergencia resultante
+
+nota: usar la divergencia como referencia para ver los cambios que hay que hacer para reducir la divergencia
+en la siguiente iteracion (es como un puntero que indica a donde hay que mover cada punto)
+
+
+
 1. Calculate pairwise similarities or dissimilarities between data points in the high-dimensional space. This could be based on various metrics,
     such as Euclidean distance, cosine similarity, or other similarity measures.
 

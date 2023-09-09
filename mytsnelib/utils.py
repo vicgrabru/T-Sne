@@ -6,4 +6,4 @@ def read_csv(route):
         entries = len(reader)
         matrix_size = math.sqrt(columns)
         digits = []
-        
+
