@@ -1,5 +1,14 @@
 #from mytsnelib import functions
 import numpy as np
+
+A = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+A0 = np.sum(A, axis=0)
+A1 = np.sum(A, axis=1)
+
+print(A)
+print(A0)
+print(A1)
+
 """
 
 from numpy import random

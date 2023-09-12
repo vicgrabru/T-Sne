@@ -6,10 +6,10 @@ def euclidean_distance(X, Y=None, X_dot_products=None, Y_dot_products=None, retu
     
     Parameters
     ----------
-    X : {array-like, sparse matrix} of shape (n_samples_X, n_features)
+    X : {array-like, matrix} of shape (n_samples_X, n_features)
         An array where each row is a sample and each column is a feature.
 
-    Y : {array-like, sparse matrix} of shape (n_samples_Y, n_features), \
+    Y : {array-like, matrix} of shape (n_samples_Y, n_features), \
             default=None
         An array where each row is a sample and each column is a feature.
         If none is given, method uses `Y=X`.
@@ -50,6 +50,7 @@ def euclidean_distance(X, Y=None, X_dot_products=None, Y_dot_products=None, retu
         Y_dot_products = (Y * Y).sum(axis=1)
     
     return __euclidean_distance(X,Y,X_dot_products,Y_dot_products,return_squared)
+
 
 def __euclidean_distance(X, Y, X_dot_products, Y_dot_products, return_squared):
     """This is where the euclidean distances are calculated.
@@ -106,6 +107,7 @@ def conditional_p(distances, deviations):
     np.fill_diagonal(probs, 0.)
     return probs/probs.sum(axis=1).reshape([-1,1])
 
+
 def perplexity_from_conditional_p(cond_p):
     """Compute the perplexity from the conditional p_{j|i} and p_{i|j}
     following the formula
@@ -113,6 +115,7 @@ def perplexity_from_conditional_p(cond_p):
     """
     perp = -np.sum(cond_p*np.log2(cond_p.T),1)
     return 2**perp
+
 
 def search_deviations(distances, perplexity=10., tolerance=0.1):
     """Obtain the Standard Deviations (σ) of each point in the given set (from the distances) such that
@@ -175,7 +178,75 @@ def __search_deviation(distances, min_perplexity, max_perplexity, min_current_de
         return __search_deviation(distances, min_perplexity, max_perplexity, min_current_deviation, max_current_deviation)
 
 
+def conditional_probabilities_from_distances(distances, perplexity, tolerance=None, distribution='gaussian', distribution_params=None):
+    """Obtain the conditional probabilities of a set of distances
 
-def conditional_probabilities_from_distances(distances, perplexity, tolerance=None):
-    devs = search_deviations(distances,perplexity,tolerance)
-    return conditional_p(distances, devs)
+    Parameters
+    ----------
+    distances : ndarray of shape (n_samples, n_samples)
+        An array with the distances between the different points.
+
+    perplexity : double. default = 10
+        An array where each row is a sample and each column is a feature.
+        Optional. If None, it assumes `Y=X`.
+    
+    tolerance : double. default = 0.1
+        The ratio of tolerance for the goal perplexity expressed as
+        per-unit (e.g.: a tolerance of 25% would be 0.25).
+        Note: If 0, the result perplexity must be exact.
+    distribution: str. default = 'gaussian'
+        The type of distribution to use to compute the conditional probabilities.
+
+    distribution_params: Optional, dict[Type]
+        A dictionary of any further parameters required for the distribution type selected.
+        In the case of t-student, must be the number of degrees of freedom, and Type must be int. 
+
+    Returns
+    -------
+    probabilities : ndarray of shape (n_samples, n_samples) that contains the conditional probabilities between the points given.
+    """
+    if distribution=='gaussian':
+        devs = search_deviations(distances,perplexity,tolerance)
+        result = conditional_p(distances, devs)
+    elif distribution=='t-student':
+        if distribution_params==None or not isinstance(distribution_params, np.array) or distribution_params.ndtype==np.int_:
+            raise ValueError("Degrees of freedom required for the t-student distribution")
+        else:
+            distances /= distribution_params[0]
+            distances += 1.
+            distances **= (distribution_params[0] + 1.)/-2.
+            return distances/(2. * np.sum(distances))
+    else:
+        raise ValueError("Only distributions supported are gaussian and t-student")
+    return result
+
+
+def joint_probabilities(distances, perplexity, tolerance=None):
+    """Obtain the joint probabilities (or affinities) of the points with the given distances.
+
+    Parameters
+    ----------
+    distances : ndarray of shape (n_samples, n_samples)
+        An array with the distances between the different points.
+
+    perplexity : double. default = 10
+        An array where each row is a sample and each column is a feature.
+        Optional. If None, it assumes `Y=X`.
+    
+    tolerance : double. default = 0.1
+        The ratio of tolerance for the goal perplexity expressed as
+        per-unit (e.g.: a tolerance of 25% would be 0.25).
+        Note: If 0, the result perplexity must be exact
+
+    Returns
+    -------
+    probabilities : ndarray of shape (n_samples, n_samples) that contains the joint probabilities between the points given.
+    """
+    cond_probs = conditional_probabilities_from_distances(distances,perplexity,tolerance)
+    return __join_probabilities(cond_probs)
+
+
+def __join_probabilities(conditional_probabilities):
+    """Computational side of the calculation of the joint probabilities
+    """
+    return (conditional_probabilities + conditional_probabilities.T)/(2.*conditional_probabilities.shape[0])
