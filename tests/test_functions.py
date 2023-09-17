@@ -1,13 +1,33 @@
-#from mytsnelib import functions
+
+
+
+
 import numpy as np
+from mytsnelib import functions
+import mytsnelib.utils as ut
 
-A = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-A0 = np.sum(A, axis=0)
-A1 = np.sum(A, axis=1)
+include_n_samples = 300
+index_start = 0
 
-print(A)
-print(A0)
-print(A1)
+read_csv = ut.read_csv("data/digits.csv", has_labels=True)
+
+data_full = read_csv[0].astype(np.int64)
+labels_full = read_csv[1]
+
+data = data_full[index_start:index_start+include_n_samples,:]
+labels = labels_full[index_start:index_start+include_n_samples]
+
+
+
+model = functions.TSne(max_iter=30)
+
+model.fit(data, classes=labels)
+
+
+
+
+
+model.display_embed()
 
 """
 
