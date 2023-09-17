@@ -7,7 +7,7 @@ from mytsnelib import similarities
 import time
 
 
-def gradient(high_dimension_probs, low_dimension_probs, embed):
+def gradient(high_dimension_probs, low_dimension_probs, embed,*, n_neighbors=None, embed_distances=None):
     """Computes the gradient of the cost function.
 
     Parameters
@@ -29,21 +29,49 @@ def gradient(high_dimension_probs, low_dimension_probs, embed):
             It can be interpreted as a set of arrays that shows in what direction each point
             must be "pulled" towards for a better embedding.
     """
+    if n_neighbors is None:
+        n_neighbors = embed.shape[0]-1
+    
     prob_diff = high_dimension_probs - low_dimension_probs
-    embed_distances = similarities.euclidean_distance(embed, return_squared=True)
+    if embed_distances is None:
+        embed_distances = similarities.euclidean_distance_neighbors(embed, return_squared=True,n_neighbors=n_neighbors)
     
 
     n = high_dimension_probs.shape[0]
     gradient = np.zeros(shape=(n,embed.shape[1]))
     
-
+    
     for i in range(0,n):
-        y_diff = embed[i] - embed
+        embed_diff = embed[i] - embed
         prob_diff = high_dimension_probs[i]-low_dimension_probs[i]
         dist = 1+embed_distances[i]
-        gradient[i] = 4*np.sum(prob_diff*y_diff/dist, axis=0)
-    return gradient
 
+        #set the dimensions of prob_diff to match embed_diff's
+        if prob_diff.shape.__len__()==1:
+            min_dim = 0
+        else:
+            min_dim = prob_diff.shape[1]
+
+        dims_to_add = embed_diff.shape[1] - min_dim
+        while embed_diff.shape != prob_diff.shape:
+            prob_diff_temp = prob_diff
+            prob_diff = np.repeat(np.expand_dims(prob_diff_temp, axis=dims_to_add-1), dims_to_add, axis=dims_to_add-1)
+            del prob_diff_temp
+        
+        #set the dimensions of dist to match embed_diff's
+        if dist.shape.__len__()==1:
+            min_dim = 0
+        else:
+            min_dim = prob_diff.shape[1]
+
+        dims_to_add = embed_diff.shape[1] - min_dim
+        while embed_diff.shape != dist.shape:
+            dist_temp = dist
+            dist = np.repeat(np.expand_dims(dist_temp, axis=dims_to_add-1), dims_to_add, axis=dims_to_add-1)
+            del dist_temp
+        
+        gradient[i] = 4*np.sum(prob_diff*embed_diff/dist, axis=0)
+    return gradient
 
 def kl_divergence(high_dimension_p, low_dimension_q):
     """Computes the Kullback-Leibler divergence
@@ -60,7 +88,9 @@ def kl_divergence(high_dimension_p, low_dimension_q):
         divergence : double.
             The divergence.
     """
+    
     result = high_dimension_p * np.log(np.divide(high_dimension_p, low_dimension_q))
+
     return np.sum(result)
 
 
@@ -221,7 +251,6 @@ class TSne():
             elif descent_mode not in accepted_modes:
                 raise ValueError("Only possible descent modes are recursive and iterative")
 
-
     def __momentum(self,t):
         t_limit = self.momentum_params[0]
         m1 = self.momentum_params[1]
@@ -232,8 +261,7 @@ class TSne():
             self.early_exaggeration=1
             return m2
 
-
-    def initial_embed(self, *, data=None, zeros=False, entries=None):
+    def initial_embed(self, *, data=None, zeros=False):
         """Returns an initial embedding following the given parameters.
 
         Parameters
@@ -252,20 +280,20 @@ class TSne():
             The calculated embedding.
 
         """
-        n_points = data.shape()[0]
-        embed = np.zeros(shape=[n_points, self.n_dimensions])
-        if (data==None and entries==None) or zeros:
-            embed = embed
-        elif self.init_method=="random":
-            if entries is not None:
-                size_x = entries
+        if data is None:
+            if zeros:
+                raise ValueError("Cannot generate any initial embed without generation parameters")
+        else:
+            target_shape = (data.shape[0], self.n_dimensions)
+            if zeros:
+                embed = np.zeros(shape=target_shape)
             else:
-                size_x = data.shape[0]
-            embed = np.random.normal(loc=0.0, scale=1e-4, size=(size_x, self.n_dimensions))
-        if self.embed == None and self.init_method!="precomputed":
-            self.embed = embed
-        return embed
-
+                embed = np.random.normal(loc=0.0, scale=1e-4, size=target_shape)
+            
+            if not zeros and self.embed is None and self.init_method!="precomputed":
+                self.embed = embed
+            
+            return embed
 
     def fit(self, X, classes:np.ndarray=None):
         """Fit the given data and perform the embedding
@@ -277,6 +305,8 @@ class TSne():
         classes: 1-D array of size (n_samples). Optional.
             Array with the class that each element in X belongs to.
         """
+    
+    
         t0 = time.time()
 
         if X.shape[0]<10:
@@ -296,10 +326,9 @@ class TSne():
         t1 = time.time()
         
         tdiff = t1-t0
-        
+
         print("Embedding process finished")
         print('Execution time:', time.strftime("%H:%M:%S", time.gmtime(tdiff)))
-
 
     def gradient_descent_recursive(self, t, data):
         """Performs the gradient descent in a recursive manner
@@ -318,6 +347,7 @@ class TSne():
 
         Note: Does not update the value of the embedding_history parameter.
         """
+
         distances_original = similarities.euclidean_distance_neighbors(data, n_neighbors=self.n_neighbors)
         affinities_original = similarities.joint_probabilities(distances_original, self.perplexity, self.perplexity_tolerance)
         
@@ -329,12 +359,12 @@ class TSne():
             raise ValueError("t must be a positive Integer")
 
         if t == 0:
-            new_embed = self.initial_embed(affinities_original, zeros=True)
+            new_embed = self.initial_embed(data=affinities_original, zeros=True)
         elif t == 1:
             if self.embed is not None:
                 new_embed = self.embed
             else:
-                new_embed = self.initial_embed(entries=affinities_original.shape[0])
+                new_embed = self.initial_embed(data=affinities_original)
         else:
             if self.embed==None:
                 raise ValueError("Embed can only be None for t<2")
@@ -354,7 +384,6 @@ class TSne():
         
         self.embedding_current_t = t
         return new_embed
-
 
     def gradient_descent_iterative(self, t, data, return_evolution=False):
         """Performs the gradient descent in an iterative manner
@@ -380,43 +409,38 @@ class TSne():
         """
         
         #con los vecinos indicados
-        #distances_original = similarities.euclidean_distance_neighbors(data,n_neighbors=self.n_neighbors)
+        distances_original = similarities.euclidean_distance_neighbors(data,n_neighbors=self.n_neighbors)
         
         #tomando todos los puntos como vecinos para ver si funciona
-        distances_original = similarities.euclidean_distance_neighbors(data,n_neighbors=data.shape[0]-1)
-
-        print("======================")
-        print("metodo: gradient_descent_iterative")
-        print("printed: distances")
-        print("----------------------")
-        print(distances_original)
-        print("======================")
-
+        #distances_original = similarities.euclidean_distance_neighbors(data,n_neighbors=data.shape[0]-1)
 
         affinities_original = similarities.joint_probabilities(distances_original, self.perplexity, self.perplexity_tolerance)
 
         n_points = data.shape[0]
         Y = np.zeros(shape=(t, n_points, self.n_dimensions))
-        Y[0] = self.initial_embed(data, zeros=True)
+        Y[0] = self.initial_embed(data=data, zeros=True)
 
-        Y[1] = self.embed if self.embed is not None else self.initial_embed(entries=affinities_original.shape[0])
+        
+        Y[1] = self.embed if self.embed is not None else self.initial_embed(data=data)
         
         for i in range(2,t):
-            distances_embed = similarities.euclidean_distance(Y[i-1])
+            #print("last t for gradient descent iterative: {}".format(i))
+
+            #print(Y[i-1])
+
+            distances_embed = similarities.euclidean_distance_neighbors(Y[i-1], n_neighbors=self.n_neighbors)
             affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance)
-            grad = gradient(affinities_original,self.early_exaggeration*affinities_current,Y[i-1])
+            grad = gradient(affinities_original,self.early_exaggeration*affinities_current,Y[i-1],n_neighbors=self.n_neighbors,embed_distances=distances_embed)
             Y[i] = Y[i-1] + self.learning_rate*grad + self.__momentum(i)*(Y[i-1]-Y[i-2])
         
         self.embedding_current_t = t-1
         self.embedding_history = Y
         self.embed = Y[t-1]
-        
         if return_evolution:
             return Y
         else:
             return Y[t-1]
-    
-    
+
     def display_embed(self, t:int=None):
         """Displays the resulting embedding.
 
@@ -455,7 +479,10 @@ class TSne():
                 if self.element_classes is not None:
                     for i in range(0,x.shape[0]):
                         plt.plot(x[i],y[i],marker='o',linestyle='', markersize=8, label=labels[i])
-                    plt.legend()
+
+                    handles, labels = plt.gca().get_legend_handles_labels()
+                    by_label = dict(zip(labels, handles))
+                    plt.legend(by_label.values(), by_label.keys())
                 else:
                     for i in range(0,x.shape[0]):
                         plt.plot(x[i],y[i],marker='o',linestyle='', markersize=8)
@@ -472,47 +499,5 @@ class TSne():
                 else:
                     for i in range(0,x.shape[0]):
                         ax.plot(x[i],y[i],z[i], marker='o',linestyle='', markersize=8)
-            plt.title("Result for embedding at t={}".format(t))
+            plt.title("Result for embedding at t={}".format(t+1))
             plt.show()
-        
-
-"""
-def suma(int1: int, int2: int) -> int:
-    t = TSNE(
-        n_components=2,
-        init="random",
-        random_state=0,
-        perplexity=30,
-        n_iter=300,
-    )
-    return int1 + int2
-"""
-
-""""
-1.- calcular distancias entre puntos
-2.- obtener la distribucion de probabilidad condicional para cada pareja de puntos (p_i|j, p_j|i)
-3.- crear espacio de menos dimensiones (misma cantidad de entradas)
-4.- obtener la distribucion de probabilidad del nuevo espacio (q)
-5.- calcular la divergencia kullback-leibler entre p y q para cada par de puntos
-6.- repetir desde el paso 3 (cambiando las posiciones de los puntos segun la divergencia) para disminuir la divergencia resultante
-
-nota: usar la divergencia como referencia para ver los cambios que hay que hacer para reducir la divergencia
-en la siguiente iteracion (es como un puntero que indica a donde hay que mover cada punto)
-
-
-
-1. Calculate pairwise similarities or dissimilarities between data points in the high-dimensional space. This could be based on various metrics,
-    such as Euclidean distance, cosine similarity, or other similarity measures.
-
-2. Construct a probability distribution over these pairwise similarities or dissimilarities. This distribution
-    represents the relationships between data points in the high-dimensional space.
-
-3. Define a similar probability distribution over the lower-dimensional space (e.g., 2D or 3D).
-
-4. Optimize the positions of data points in the lower-dimensional space so that the divergence between the two distributions
-    (high-dimensional and lower-dimensional) is minimized. This is typically done using gradient descent optimization techniques.
-
-5. Iterate the optimization process to achieve a stable mapping of data points in the lower-dimensional space.
-
-
-"""
