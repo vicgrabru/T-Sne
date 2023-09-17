@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 from mytsnelib import similarities
 import time
 
-
 def gradient(high_dimension_probs, low_dimension_probs, embed,*, n_neighbors=None, embed_distances=None):
     """Computes the gradient of the cost function.
 

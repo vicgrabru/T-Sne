@@ -290,8 +290,6 @@ def find_nearest_neighbors_index(distances:np.ndarray, n_neighbors:int):
     indexes: ndarray of shape (n_samples, n_neighbors).
         The indexes of the nearest n_neighbors.
     """
-
-    print()
     n = distances.shape[0]
     result = np.zeros(shape=(n, n_neighbors))
     for i in range(0, n):
