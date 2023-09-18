@@ -44,29 +44,17 @@ def gradient(high_dimension_probs, low_dimension_probs, embed,*, n_neighbors=Non
         embed_diff = embed[i] - embed
         prob_diff = high_dimension_probs[i]-low_dimension_probs[i]
         dist = 1+embed_distances[i]
-
-        #set the dimensions of prob_diff to match embed_diff's
-        if prob_diff.shape.__len__()==1:
-            min_dim = 0
-        else:
-            min_dim = prob_diff.shape[1]
-
-        dims_to_add = embed_diff.shape[1] - min_dim
-        while embed_diff.shape != prob_diff.shape:
+        
+        n_repeats = embed_diff.shape[1]
+        if embed_diff.shape != prob_diff.shape:
             prob_diff_temp = prob_diff
-            prob_diff = np.repeat(np.expand_dims(prob_diff_temp, axis=dims_to_add-1), dims_to_add, axis=dims_to_add-1)
+            prob_diff = np.repeat(np.expand_dims(prob_diff_temp, axis=1), n_repeats, axis=1)
             del prob_diff_temp
         
         #set the dimensions of dist to match embed_diff's
-        if dist.shape.__len__()==1:
-            min_dim = 0
-        else:
-            min_dim = prob_diff.shape[1]
-
-        dims_to_add = embed_diff.shape[1] - min_dim
-        while embed_diff.shape != dist.shape:
+        if embed_diff.shape != dist.shape:
             dist_temp = dist
-            dist = np.repeat(np.expand_dims(dist_temp, axis=dims_to_add-1), dims_to_add, axis=dims_to_add-1)
+            dist = np.repeat(np.expand_dims(dist_temp, axis=1), n_repeats, axis=1)
             del dist_temp
         
         gradient[i] = 4*np.sum(prob_diff*embed_diff/dist, axis=0)
@@ -101,16 +89,16 @@ class TSne():
     """
 
     def __init__(self, *, n_dimensions=2, perplexity=30, perplexity_tolerance=0.1, n_neighbors = 10,
-                 metric='euclidean', init_method="random", init_embed=None, early_exaggeration=4,
+                 metric='euclidean', init_method="random", init_embed=None, early_exaggeration=4,seed=None,
                  learning_rate=200, max_iter=1000, momentum_params=[250.0,0.5,0.8], descent_mode="iterative"):
         #validacion de parametros
         #TODO marca 13 inputs que se le pasan, pero solo le estoy pasando 12 wtf
         self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,
-                                early_exaggeration, learning_rate, max_iter, momentum_params, descent_mode)
+                                early_exaggeration, learning_rate, max_iter, momentum_params, descent_mode, seed)
 
 
         if n_neighbors==None:
-            n_neighbors = 3*perplexity
+            n_neighbors = 3*perplexity + 1
 
         #inicializacion de la clase
         self.n_dimensions = n_dimensions
@@ -127,13 +115,16 @@ class TSne():
         self.descent_mode = descent_mode
         self.n_neighbors = n_neighbors
 
-        #set parameters to use later
 
+        #set parameters to use later
         self.element_classes = None
         self.embedding_history = None
 
+        #set the seed
+        self.random_state = np.random.RandomState(seed) if seed is not None else None
+
     def __input_validation(self,n_dimensions,perplexity,perplexity_tolerance,n_neighbors,metric,init_method,init_embed,
-                           early_exaggeration,learning_rate,max_iter,momentum_params,descent_mode):
+                           early_exaggeration,learning_rate,max_iter,momentum_params,descent_mode, seed):
         
         accepted_methods = ["random", "precomputed"]
         accepted_metrics=["euclidean"]
@@ -243,6 +234,13 @@ class TSne():
             elif not (momentum_params[0]).is_integer():
                 raise ValueError("The time threshold cant be a decimal number")
 
+        # seed: int
+        if seed is not None:
+            if not isinstance(seed, int):
+                raise ValueError("seed must be an integer")
+            elif seed<0:
+                raise ValueError("seed must be a positive integer")
+        
         # descent_mode: str
         if descent_mode is not None:
             if not isinstance(descent_mode, str):
@@ -286,8 +284,10 @@ class TSne():
             target_shape = (data.shape[0], self.n_dimensions)
             if zeros:
                 embed = np.zeros(shape=target_shape)
+            elif self.random_state is not None:
+                embed = self.random_state.standard_normal(size=target_shape)
             else:
-                embed = np.random.normal(loc=0.0, scale=1e-4, size=target_shape)
+                embed = np.random.standard_normal(size=target_shape)
             
             if not zeros and self.embed is None and self.init_method!="precomputed":
                 self.embed = embed
@@ -325,9 +325,10 @@ class TSne():
         t1 = time.time()
         
         tdiff = t1-t0
-
+        t_iter = tdiff/self.max_iter
         print("Embedding process finished")
         print('Execution time:', time.strftime("%H:%M:%S", time.gmtime(tdiff)))
+        print('Time/Iteration:', time.strftime("%H:%M:%S", time.gmtime(t_iter)))
 
     def gradient_descent_recursive(self, t, data):
         """Performs the gradient descent in a recursive manner
@@ -429,7 +430,14 @@ class TSne():
 
             distances_embed = similarities.euclidean_distance_neighbors(Y[i-1], n_neighbors=self.n_neighbors)
             affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance)
+            
+            #   con early exaggeration
             grad = gradient(affinities_original,self.early_exaggeration*affinities_current,Y[i-1],n_neighbors=self.n_neighbors,embed_distances=distances_embed)
+            
+            #   sin early exaggeration
+            # grad = gradient(affinities_original,affinities_current,Y[i-1],n_neighbors=self.n_neighbors,embed_distances=distances_embed)
+            
+            
             Y[i] = Y[i-1] + self.learning_rate*grad + self.__momentum(i)*(Y[i-1]-Y[i-2])
         
         self.embedding_current_t = t-1
@@ -477,11 +485,14 @@ class TSne():
 
                 if self.element_classes is not None:
                     for i in range(0,x.shape[0]):
-                        plt.plot(x[i],y[i],marker='o',linestyle='', markersize=8, label=labels[i])
+                        plt.plot(x[i],y[i],marker='o',linestyle='', markersize=5, label=labels[i])
 
+
+                    
                     handles, labels = plt.gca().get_legend_handles_labels()
                     by_label = dict(zip(labels, handles))
-                    plt.legend(by_label.values(), by_label.keys())
+                    plt.legend(by_label.values(), by_label.keys(), draggable=True)
+                    
                 else:
                     for i in range(0,x.shape[0]):
                         plt.plot(x[i],y[i],marker='o',linestyle='', markersize=8)
@@ -493,8 +504,11 @@ class TSne():
                 z = embed_T[2]
                 if self.element_classes is not None:
                     for i in range(0,x.shape[0]):
-                        ax.plot(x[i],y[i],z[i], label=labels[i], marker='o',linestyle='', markersize=8)
-                    ax.legend()
+                        ax.plot(x[i],y[i],z[i], label=labels[i], marker='o',linestyle='', markersize=5)
+                    
+                    handles, labels = ax.get_legend_handles_labels()
+                    unique = [(h, l) for i, (h, l) in enumerate(zip(handles, labels)) if l not in labels[:i]]
+                    ax.legend(*zip(*unique), draggable=True)
                 else:
                     for i in range(0,x.shape[0]):
                         ax.plot(x[i],y[i],z[i], marker='o',linestyle='', markersize=8)

@@ -2,18 +2,38 @@
 
 
 
+
+
+
+
+
+#======================================================#
+include_n_samples = 300
+index_start = 0
+#======================================================#
+
+
+#======================================================#
+n_dimensions = 2
+n_iterations = 1000
+neighbors = None
+perplexity_tolerance = 0.
+perplexity = 50
+#======================================================#
+
 import numpy as np
 from mytsnelib import functions
 import mytsnelib.utils as ut
-include_n_samples = 300
-index_start = 0
 read_csv = ut.read_csv("data/digits.csv", has_labels=True)
 data_full = read_csv[0].astype(np.int64)
 labels_full = read_csv[1]
 data = data_full[index_start:index_start+include_n_samples,:]
 labels = labels_full[index_start:index_start+include_n_samples]
-model = functions.TSne(max_iter=30, n_neighbors=10)
-
+model = functions.TSne(n_dimensions=n_dimensions,
+                       perplexity_tolerance=perplexity_tolerance,
+                       max_iter=n_iterations,
+                       n_neighbors=neighbors,
+                       perplexity=perplexity)
 
 
 model.fit(data, classes=labels)
@@ -24,40 +44,6 @@ model.fit(data, classes=labels)
 
 model.display_embed()
 
-
-
-
-
-
-
-
-
-a = np.asarray([1,2,3,4,5])
-
-print(a.shape[1])
-
-b = np.repeat(np.expand_dims(a, axis=1), 2, axis=1)
-
-
-
-
-
-
-
-
-
-"""
-
-from numpy import random
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-sns.kdeplot(random.normal(loc=0, scale=2, size=(2,3)))
-
-plt.show()
-
-
-"""
 
 
 

@@ -192,16 +192,21 @@ def search_deviations(distances:np.ndarray, perplexity=10., tolerance=0.1):
     n = distances.shape[0]
     max_deviation = 100000000000000. * np.ones(shape=(n,))
     min_deviation = min_double*np.ones(shape=(n,)) + min_double
-    for _ in range(0, max_iters_deviation):
+    #for _ in range(0, max_iters_deviation):
+    while True:
         temp_devs = 0.5*(max_deviation+min_deviation)
         computed_deviation = np.where(max_deviation==min_deviation, max_deviation, temp_devs)
 
         perplexities = perplexity_from_conditional_p(conditional_p(distances,computed_deviation))
 
+        max_deviation = np.where(perplexities>=min_perp, computed_deviation, max_deviation)
+        min_deviation = np.where(perplexities>=max_perp, computed_deviation, min_deviation)
+        """
         for i in range(0,n):
             if perplexities[i] >= min_perp: max_deviation[i] = computed_deviation[i]
             if perplexities[i] <= max_perp: min_deviation[i] = computed_deviation[i]
-        
+        """
+
         if np.array_equal(min_deviation, max_deviation): break
     return computed_deviation
 

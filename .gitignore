@@ -2,3 +2,4 @@
 .pytest_cache
 */__pycache__
 .vscode
+code_testing_results
