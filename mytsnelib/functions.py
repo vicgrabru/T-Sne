@@ -32,32 +32,59 @@ def gradient(high_dimension_probs, low_dimension_probs, embed,*, n_neighbors=Non
         n_neighbors = embed.shape[0]-1
     
     prob_diff = high_dimension_probs - low_dimension_probs
+    
     if embed_distances is None:
-        embed_distances = similarities.euclidean_distance_neighbors(embed, return_squared=True,n_neighbors=n_neighbors)
+        embed_distances = similarities.euclidean_distance_neighbors(embed, return_squared=False,n_neighbors=n_neighbors)
+    
+
+    np.fill_diagonal(embed_distances,0.)
+    embed_distances += np.ones_like(embed_distances)
+
+
     
 
     n = high_dimension_probs.shape[0]
-    gradient = np.zeros(shape=(n,embed.shape[1]))
+    gradient = np.zeros_like(embed)
     
+    # print(embed_distances)
     
     for i in range(0,n):
+        #y_i - y_j
         embed_diff = embed[i] - embed
+        #p_ij - q_ij
         prob_diff = high_dimension_probs[i]-low_dimension_probs[i]
-        dist = 1+embed_distances[i]
+        # 1 + (||y_i - y_j||)^2
+        dist = embed_distances[i]
+        
+        """
+        print("================================")
+        print("previo a ajuste de dimensiones:")
+        print("embed_diff.shape: {}".format(embed_diff.shape))
+        print("prob_diff.shape: {}".format(prob_diff.shape))
+        print("dist.shape: {}".format(dist.shape))
+        print("================================")
+        """
+
         
         n_repeats = embed_diff.shape[1]
         if embed_diff.shape != prob_diff.shape:
             prob_diff_temp = prob_diff
             prob_diff = np.repeat(np.expand_dims(prob_diff_temp, axis=1), n_repeats, axis=1)
-            del prob_diff_temp
         
         #set the dimensions of dist to match embed_diff's
         if embed_diff.shape != dist.shape:
             dist_temp = dist
             dist = np.repeat(np.expand_dims(dist_temp, axis=1), n_repeats, axis=1)
-            del dist_temp
+        
+        
+        # print(dist)
         
         gradient[i] = 4*np.sum(prob_diff*embed_diff/dist, axis=0)
+
+        # prod = np.multiply(prob_diff,embed_diff)
+        # division = np.divide(prod,dist)
+        # gradient[i] = 4*np.sum(division, axis=0)
+    
     return gradient
 
 def kl_divergence(high_dimension_p, low_dimension_q):
@@ -76,10 +103,36 @@ def kl_divergence(high_dimension_p, low_dimension_q):
             The divergence.
     """
     
-    result = high_dimension_p * np.log(np.divide(high_dimension_p, low_dimension_q))
+    result = high_dimension_p * np.log(high_dimension_p/low_dimension_q)
 
     return np.sum(result)
 
+def trustworthiness(data, embed, n_neighbors):
+    dist_original = similarities.euclidean_distance(data, return_squared=True)
+    dist_embed = similarities.euclidean_distance(embed, return_squared=True)
+
+    v_in = similarities.get_neighbors_ranked_by_distance(dist_original)
+    v_out = similarities.find_nearest_neighbors_index(dist_embed, n_neighbors)
+    
+    n = data.shape[0]
+    k = n_neighbors
+
+    # k_array = k * np.ones_like(v_in)
+
+    penalizacion_temp = v_in - k
+    penalizacion = np.where (penalizacion_temp<0, penalizacion_temp, 0)
+
+    for i in range(0, v_in.shape[0]):
+        for j in range(0, v_in.shape[0]):
+            if j not in v_out[i]:
+                penalizacion[i][j]=0
+
+    sumatorio_doble = np.sum(penalizacion)
+    
+    div = n*k*(2*n-3*k-1)
+    result = 1-(2*sumatorio_doble/div)
+    
+    return result
 
 
 
@@ -92,7 +145,6 @@ class TSne():
                  metric='euclidean', init_method="random", init_embed=None, early_exaggeration=4,seed=None,
                  learning_rate=200, max_iter=1000, momentum_params=[250.0,0.5,0.8], descent_mode="iterative"):
         #validacion de parametros
-        #TODO marca 13 inputs que se le pasan, pero solo le estoy pasando 12 wtf
         self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,
                                 early_exaggeration, learning_rate, max_iter, momentum_params, descent_mode, seed)
 
@@ -119,6 +171,9 @@ class TSne():
         #set parameters to use later
         self.element_classes = None
         self.embedding_history = None
+        self.best_cost = np.finfo(float).max
+        self.best_iter = max_iter
+        self.cost_history = None
 
         #set the seed
         self.random_state = np.random.RandomState(seed) if seed is not None else None
@@ -252,11 +307,12 @@ class TSne():
         t_limit = self.momentum_params[0]
         m1 = self.momentum_params[1]
         m2 = self.momentum_params[2]
-        if t<t_limit:
-            return m1
-        else:
+        
+        if t>t_limit:
             self.early_exaggeration=1
             return m2
+        else:
+            return m1
 
     def initial_embed(self, *, data=None, zeros=False):
         """Returns an initial embedding following the given parameters.
@@ -308,6 +364,8 @@ class TSne():
     
         t0 = time.time()
 
+        self.learning_rate = max(self.learning_rate, np.floor([X.shape[0]/12])[0])
+
         if X.shape[0]<10:
             raise ValueError("Not enough samples. Must be at least 10 samples.")
 
@@ -317,7 +375,7 @@ class TSne():
         if self.descent_mode=="recursive":
             self.gradient_descent_recursive(self.max_iter, X)
         elif self.descent_mode=="iterative":
-            self.gradient_descent_iterative(self.max_iter, X)
+            self.gradient_descent_iterative(self.max_iter, X, self.__momentum)
         
         if classes is not None:
             self.element_classes = classes
@@ -385,7 +443,7 @@ class TSne():
         self.embedding_current_t = t
         return new_embed
 
-    def gradient_descent_iterative(self, t, data, return_evolution=False):
+    def gradient_descent_iterative(self, t, data, momentum_term, return_evolution=False):
         """Performs the gradient descent in an iterative manner
 
         Parameters
@@ -410,9 +468,6 @@ class TSne():
         
         #con los vecinos indicados
         distances_original = similarities.euclidean_distance_neighbors(data,n_neighbors=self.n_neighbors)
-        
-        #tomando todos los puntos como vecinos para ver si funciona
-        #distances_original = similarities.euclidean_distance_neighbors(data,n_neighbors=data.shape[0]-1)
 
         affinities_original = similarities.joint_probabilities(distances_original, self.perplexity, self.perplexity_tolerance)
 
@@ -423,26 +478,45 @@ class TSne():
         
         Y[1] = self.embed if self.embed is not None else self.initial_embed(data=data)
         
-        for i in range(2,t):
-            #print("last t for gradient descent iterative: {}".format(i))
+        self.cost_history = np.zeros(shape=t)
+        self.cost_history[0] = self.best_cost
 
-            #print(Y[i-1])
-
-            distances_embed = similarities.euclidean_distance_neighbors(Y[i-1], n_neighbors=self.n_neighbors)
-            affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance)
+        for i in range(1,t-1):
             
+            # print("i: {}".format(i))
+
+            distances_embed = similarities.euclidean_distance_neighbors(Y[i], n_neighbors=self.n_neighbors, return_squared=False)
+            affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
+
             #   con early exaggeration
-            grad = gradient(affinities_original,self.early_exaggeration*affinities_current,Y[i-1],n_neighbors=self.n_neighbors,embed_distances=distances_embed)
-            
+            grad = gradient(affinities_original,self.early_exaggeration*affinities_current,Y[i],n_neighbors=self.n_neighbors,embed_distances=distances_embed)
             #   sin early exaggeration
-            # grad = gradient(affinities_original,affinities_current,Y[i-1],n_neighbors=self.n_neighbors,embed_distances=distances_embed)
+            # grad = gradient(affinities_original,affinities_current,Y[i],n_neighbors=self.n_neighbors,embed_distances=distances_embed)
             
+            cost = kl_divergence(affinities_original, affinities_current)
+            self.cost_history[i] = cost
             
-            Y[i] = Y[i-1] + self.learning_rate*grad + self.__momentum(i)*(Y[i-1]-Y[i-2])
+            Y[i+1] = Y[i] - self.learning_rate*grad + momentum_term(i+1)*(Y[i]-Y[i-1])
         
+
+
+        distances_embed = similarities.euclidean_distance_neighbors(Y[t-1], n_neighbors=self.n_neighbors)
+        affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
+        
+        cost = kl_divergence(affinities_original, affinities_current)
+        
+        self.cost_history[t-1] = cost
+        
+        maxim = np.max(self.cost_history)
+        self.cost_history[0] = maxim
+
+        self.best_cost = np.min(self.cost_history)
+        self.best_iter = np.where(self.cost_history==self.best_cost)[0][0]
+
         self.embedding_current_t = t-1
         self.embedding_history = Y
         self.embed = Y[t-1]
+        
         if return_evolution:
             return Y
         else:
@@ -458,15 +532,22 @@ class TSne():
             If none is given, displays the last iteration.
         """
         if t is not None:
-            if self.descent_mode!="iterative":
+            if self.descent_mode!="iterative" and t!=-1:
                 raise ValueError("Previous embeddings available only when descent mode is Iterative")
-            elif t<=self.embedding_current_t:
+            elif t<0:
+                t = self.embedding_current_t
+            elif t>self.embedding_current_t:
+                raise ValueError("Cannot show embedding for t>{}".format(self.embedding_current_t))
+            else:
+                t = self.best_iter
+            embed = self.embedding_history[t]
+        else:
+            if self.descent_mode=="iterative":
+                t = self.best_iter
                 embed = self.embedding_history[t]
             else:
-                raise ValueError("Cannot show embedding for t>{}".format(self.embedding_current_t))
-        else:
-            t = self.embedding_current_t
-            embed = self.embed
+                t = self.embedding_current_t
+                embed = self.embed
 
         if self.element_classes is not None:
             labels = self.element_classes.astype(str)

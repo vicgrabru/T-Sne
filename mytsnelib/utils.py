@@ -27,9 +27,9 @@ def read_csv(route, has_labels=False):
         n_columns = array_reader.shape[1]
         if has_labels:
             labels = array_reader.T[-1]
-            entries = array_reader[0:n_entries, 0:n_columns-1]
+            entries = array_reader[:n_entries, :n_columns-1]
             return entries, labels
         else:
-            entries = array_reader[0:n_entries, 0:n_columns]
+            entries = array_reader[:n_entries, :n_columns]
             return entries
         

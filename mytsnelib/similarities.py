@@ -52,7 +52,29 @@ def euclidean_distance(X:np.ndarray, Y:np.ndarray=None, X_dot_products:np.ndarra
             raise ValueError("Y_dot_products must be of the same data type as Y.")
     else:
         Y_dot_products = (Y * Y).sum(axis=1)
-    return __euclidean_distance(X,Y,X_dot_products,Y_dot_products,return_squared)
+    
+    if np.nan in X_dot_products:
+        raise ValueError("X_dot_products contains NaN")
+    if np.inf in X_dot_products:
+        raise ValueError("X_dot_products contains inf")
+    
+    if np.nan in Y_dot_products:
+        raise ValueError("Y_dot_products contains NaN")
+    if np.inf in Y_dot_products:
+        raise ValueError("Y_dot_products contains inf")
+    
+    
+    result = __euclidean_distance(X,Y,X_dot_products,Y_dot_products,return_squared)
+    
+    if np.nan in result:
+        raise ValueError("Distance contains NaN, wrong metric")
+    if np.inf in result:
+        raise ValueError("Distance can't be infinite, wrong metric")
+    if np.where(result<0)[0].__len__()>0:
+        raise ValueError("Distance can't be negative, wrong metric")
+
+    return result
+
 
 def __euclidean_distance(X, Y, X_dot_products, Y_dot_products, return_squared):
     """This is where the euclidean distances are calculated.
@@ -60,14 +82,13 @@ def __euclidean_distance(X, Y, X_dot_products, Y_dot_products, return_squared):
     XX = X_dot_products.reshape(-1,1)
     YY = Y_dot_products.reshape(1,-1)
 
-    dist = -2 * np.dot(X,Y.T)
+    dist = np.zeros(shape=(X.shape[0],X.shape[0]))
+    
     dist += XX
+    dist -= 2 * np.dot(X,Y.T)
     dist += YY
 
-    if np.array_equal(X,Y):
-        np.fill_diagonal(dist, max_int/2)
-    
-    
+    dist = np.abs(dist)
     return dist if not return_squared else np.sqrt(dist)
 
 def euclidean_distance_neighbors(X:np.ndarray, Y:np.ndarray=None, X_dot_products:np.ndarray=None, Y_dot_products:np.ndarray=None, return_squared=False, n_neighbors=10):
@@ -107,10 +128,11 @@ def euclidean_distance_neighbors(X:np.ndarray, Y:np.ndarray=None, X_dot_products
     nearest_index = find_nearest_neighbors_index(distances,n_neighbors)
     n = distances.shape[0]
     max_dist = np.max(distances)
-    for i in range(0, n):
-        for j in range(0, n):
-            if j not in nearest_index[i] or (np.array_equal(X,Y) or Y is None) and i==j:
-                distances[i][j] = max_dist
+    for i in range(n):
+        for j in range(n):
+            if j not in nearest_index[i] or (i==j and (Y is None or np.array_equal(X,Y))):
+                distances[i][j] = 10 *max_dist
+
     return distances
 
 def check_arrays_compatible(X:np.ndarray,Y:np.ndarray=None):
@@ -139,6 +161,16 @@ def check_arrays_compatible(X:np.ndarray,Y:np.ndarray=None):
     elif not isinstance(Y, np.ndarray):
         Y = np.asarray(Y)
     
+    if np.nan in X:
+        raise ValueError("X contains NaN")
+    if np.inf in X:
+        raise ValueError("X contains inf")
+    
+    if np.nan in Y:
+        raise ValueError("Y contains NaN")
+    if np.inf in Y:
+        raise ValueError("Y contains inf")
+    
     if X.shape[1] != Y.shape[1]:
         raise ValueError("Arrays must contain the same number of columns.")
     if X.dtype != Y.dtype:
@@ -149,20 +181,22 @@ def conditional_p(distances:np.ndarray, deviations:np.ndarray):
     """Compute the conditional similarities p_{j|i} and p_{i|j}
     using the distances and standard deviations 
     """
-    probs = np.exp(-distances/2*np.square(deviations.reshape((-1,1))))
-    np.fill_diagonal(probs, 0.)
-    probs+= 1e-8
-    return probs/probs.sum(axis=1).reshape([-1,1])
+    probs = np.exp(-distances/2*np.square(deviations.reshape(-1,1)))
+    
+    probs += min_double
+    result = probs/np.sum(probs, axis=1)
+
+    return result
 
 def perplexity_from_conditional_p(cond_p:np.ndarray):
     """Compute the perplexity from the conditional p_{j|i} and p_{i|j}
     following the formula
     Perp(P) = 2**( -sum( p_{j|i}* log_2(p_{i|j}) ) )
     """
-    perp = -np.sum(cond_p*np.log2(cond_p.T),1)
+    perp = -np.sum(cond_p*np.log2(cond_p),1)
     return 2**perp
 
-def search_deviations(distances:np.ndarray, perplexity=10., tolerance=0.1):
+def search_deviations(distances:np.ndarray, perplexity=10, tolerance=0.1):
     """Obtain the Standard Deviations (σ) of each point in the given set (from the distances) such that
     the perplexities obtained when using them for the calculations of the conditional similarities will be
     within the given perplexity range.
@@ -185,32 +219,34 @@ def search_deviations(distances:np.ndarray, perplexity=10., tolerance=0.1):
     -------
     deviation : ndarray of shape (1, n_samples) of the Standard Deviations for each point.
     """
-    max_perp = (1.+tolerance) * perplexity
-    min_perp = max(min_double, (1.-tolerance) * perplexity) 
+    max_perp = (1+tolerance) * perplexity
+    min_perp = max(min_double, (1-tolerance) * perplexity) 
     
-    
+
     n = distances.shape[0]
-    max_deviation = 100000000000000. * np.ones(shape=(n,))
+    max_deviation = 1000 * np.ones(shape=(n,))
     min_deviation = min_double*np.ones(shape=(n,)) + min_double
-    #for _ in range(0, max_iters_deviation):
+
     while True:
-        temp_devs = 0.5*(max_deviation+min_deviation)
-        computed_deviation = np.where(max_deviation==min_deviation, max_deviation, temp_devs)
 
-        perplexities = perplexity_from_conditional_p(conditional_p(distances,computed_deviation))
+        
+        computed_deviation = (max_deviation+min_deviation)/2
 
-        max_deviation = np.where(perplexities>=min_perp, computed_deviation, max_deviation)
-        min_deviation = np.where(perplexities>=max_perp, computed_deviation, min_deviation)
-        """
-        for i in range(0,n):
-            if perplexities[i] >= min_perp: max_deviation[i] = computed_deviation[i]
-            if perplexities[i] <= max_perp: min_deviation[i] = computed_deviation[i]
-        """
+        cond_p = conditional_p(distances,computed_deviation)
 
-        if np.array_equal(min_deviation, max_deviation): break
+        perplexities = perplexity_from_conditional_p(cond_p)
+
+        max_dev_temp = max_deviation
+        min_dev_temp = min_deviation
+
+        max_deviation = np.where(perplexities>=min_perp, computed_deviation, max_dev_temp)
+        min_deviation = np.where(perplexities<=max_perp, computed_deviation, min_dev_temp)
+        
+        if np.array_equal(min_deviation, max_deviation) or max((max_deviation-min_deviation)/min_deviation)<max(tolerance, 0.001):break
+
     return computed_deviation
 
-def conditional_probabilities_from_distances(distances:np.ndarray, perplexity:int, tolerance:float=None, distribution='gaussian', distribution_params=None):
+def conditional_probabilities_from_distances(distances:np.ndarray, perplexity:int, tolerance:float=None):
     """Obtain the conditional probabilities of a set of distances
 
     Parameters
@@ -237,21 +273,11 @@ def conditional_probabilities_from_distances(distances:np.ndarray, perplexity:in
     -------
     probabilities : ndarray of shape (n_samples, n_samples) that contains the conditional probabilities between the points given.
     """
-    if distribution=='gaussian':
-        devs = search_deviations(distances,perplexity,tolerance)
-        return conditional_p(distances, devs)
-    elif distribution=='t-student':
-        if distribution_params==None or not isinstance(distribution_params, np.ndarray) or distribution_params.ndtype==np.int_:
-            raise ValueError("Degrees of freedom required for the t-student distribution")
-        else:
-            distances /= distribution_params[0]
-            distances += 1.
-            distances **= (distribution_params[0] + 1.)/-2.
-            return distances/(2. * np.sum(distances))
-    else:
-        raise ValueError("Only distributions supported are gaussian and t-student")
+    
+    devs = search_deviations(distances,perplexity,tolerance)
+    return conditional_p(distances, devs)
 
-def joint_probabilities(distances:np.ndarray, perplexity:int, tolerance:float=None):
+def joint_probabilities(distances:np.ndarray, perplexity:int, tolerance:float=None, distribution='gaussian'):
     """Obtain the joint probabilities (or affinities) of the points with the given distances.
 
     Parameters
@@ -272,12 +298,23 @@ def joint_probabilities(distances:np.ndarray, perplexity:int, tolerance:float=No
     -------
     probabilities : ndarray of shape (n_samples, n_samples) that contains the joint probabilities between the points given.
     """
-    cond_probs = conditional_probabilities_from_distances(distances,perplexity,tolerance)
-
-    probs_sum = cond_probs + cond_probs.T
-    denom = 2.*cond_probs.shape[0]
-
-    return probs_sum/denom
+    accepted_distr=['gaussian', 't-student']
+    if distribution not in accepted_distr:
+        raise ValueError("Only distributions supported are gaussian and t-student")
+    elif distribution=='gaussian':
+        n = distances.shape[0]
+        cond_probs = conditional_probabilities_from_distances(distances,perplexity,tolerance)
+        # np.fill_diagonal(cond_probs, min_double)
+        result = (cond_probs+cond_probs.T)/(2*n)
+    
+    elif distribution=='t-student':
+        dist = np.ones_like(distances) + distances
+        result = 2. * np.sum(1/dist)
+        result = 1/(dist*result)
+    
+    
+    return np.where(result>0.,result,min_double) 
+        
 
 def find_nearest_neighbors_index(distances:np.ndarray, n_neighbors:int):
     """Find the indexes of the nearest n_neighbors.
@@ -295,9 +332,12 @@ def find_nearest_neighbors_index(distances:np.ndarray, n_neighbors:int):
     indexes: ndarray of shape (n_samples, n_neighbors).
         The indexes of the nearest n_neighbors.
     """
+
     n = distances.shape[0]
+    
+
     result = np.zeros(shape=(n, n_neighbors))
-    for i in range(0, n):
+    for i in range(n):
         indexes = np.array([])
         dist = distances[i]
         
@@ -306,8 +346,21 @@ def find_nearest_neighbors_index(distances:np.ndarray, n_neighbors:int):
         for d in unique_dists_sorted:
             ind = np.where(dist == d)[0]
             indexes = np.append(indexes, ind)
-            if indexes.__len__()>n_neighbors:
-                indexes = indexes[0:n_neighbors]
+            if indexes.shape[0]>n_neighbors:
+                indexes = indexes[:n_neighbors]
                 break
+        
         result[i] = indexes
+    return result
+
+def get_neighbors_ranked_by_distance(distances):
+    if distances.shape.__len__()!=2 or distances.shape[0] != distances.shape[1]:
+        raise ValueError("distances must be a square 2D array")
+    result = np.ones_like(distances).astype(int)
+    for i in range(0, distances.shape[0]):
+        index_sorted = np.argsort(distances[i])
+        for j in range(0, distances.shape[1]):
+            ind_rank = index_sorted[j]
+            result[i][ind_rank] = j+1
+        result[i] = index_sorted
     return result
