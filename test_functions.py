@@ -16,6 +16,7 @@ n_iterations = 1000
 neighbors = 10
 perplexity_tolerance = 1e-10
 perplexity = 3
+verbose=1
 #======================================================#
 
 
@@ -39,7 +40,7 @@ if probando==1:
                          learning_rate='auto',
                          init='random',
                          perplexity=perplexity,
-                         verbose=1).fit_transform(data)
+                         verbose=verbose).fit_transform(data)
     
     ut.display_embed(data_embedded, labels)
     
@@ -50,24 +51,24 @@ elif probando==2:
                            perplexity_tolerance=perplexity_tolerance,
                            max_iter=n_iterations,
                            n_neighbors=neighbors,
-                           perplexity=perplexity)
+                           perplexity=perplexity,
+                           verbose=verbose)
 
     model.fit(data,classes=labels)
 
     min_cost = min(model.cost_history)
-    best_iter = np.where(model.cost_history==min_cost)[0][0]
-    best_embed = model.embedding_history[best_iter]
+    print("model.best_cost != min(model.cost_history): {}".format(model.best_cost!=min_cost))
 
-    print("best_iter:{}".format(best_iter))
-    print("min_cost:{}".format(min_cost))
+    print("best_iter:{}".format(model.best_iter))
     print("best_cost:{}".format(model.best_cost))
 
-    trustworthiness = functions.trustworthiness(data, best_embed, model.n_neighbors)
+    trustworthiness = functions.trustworthiness(data, model.Y[model.best_iter], model.n_neighbors)
     
     print("trustworthiness: {}".format(trustworthiness))
 
     
-    model.display_embed(-5)
+    model.display_embed(display_best_iter=True)
+    model.display_embed(t=-1)
 
 elif probando==3:
     print("Probando T-Sne de la pagina")

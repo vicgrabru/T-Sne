@@ -141,10 +141,10 @@ class TSne():
 
     def __init__(self, *, n_dimensions=2, perplexity=30, perplexity_tolerance=1e-10, n_neighbors = 10,
                  metric='euclidean', init_method="random", init_embed=None, early_exaggeration=4,
-                 learning_rate=200, max_iter=1000, momentum_params=[250.0,0.5,0.8], seed=None):
+                 learning_rate=200, max_iter=1000, momentum_params=[250.0,0.5,0.8], seed=None, verbose=0):
         #validacion de parametros
         self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,
-                                early_exaggeration, learning_rate, max_iter, momentum_params, seed)
+                                early_exaggeration, learning_rate, max_iter, momentum_params, seed, verbose)
 
 
         if n_neighbors==None:
@@ -161,8 +161,8 @@ class TSne():
         self.init_embed = init_embed
         self.momentum_params = momentum_params
         self.early_exaggeration = early_exaggeration
-        
         self.n_neighbors = n_neighbors
+        self.verbose = verbose
 
 
         #set parameters to use later
@@ -170,7 +170,7 @@ class TSne():
         if descent==1:
             self.embedding_current_t = 0
             self.element_classes = None
-            self.embedding_history = None
+            self.Y = None
             self.best_cost = np.finfo(float).max
             self.best_iter = max_iter
             self.cost_history = None
@@ -190,11 +190,12 @@ class TSne():
         self.random_state = np.random.RandomState(seed)
 
     def __input_validation(self,n_dimensions,perplexity,perplexity_tolerance,n_neighbors,metric,init_method,init_embed,
-                           early_exaggeration,learning_rate,max_iter,momentum_params, seed):
+                           early_exaggeration,learning_rate,max_iter,momentum_params, seed, verbose):
         accepted_methods = ["random", "precomputed"]
         accepted_metrics=["euclidean"]
         accepted_momentum_param_types = [np.float64,np.float32]
         invalid_numbers = [np.nan, np.inf]
+        accepted_verboses = range(0,2)
 
         #n_dimensions: int
         if n_dimensions is not None:
@@ -306,6 +307,13 @@ class TSne():
                 raise ValueError("seed must be an integer")
             elif seed<0:
                 raise ValueError("seed must be a positive integer")
+        
+        # verbose: int
+        if verbose is not None:
+            if not isinstance(verbose, int):
+                raise ValueError("verbose must be an integer")
+            elif verbose not in accepted_verboses:
+                raise ValueError("verbose must be within the range [0,2)")
 
     def __momentum(self,t):
         if t>self.momentum_params[0]:
@@ -356,7 +364,8 @@ class TSne():
         """
     
     
-        t0 = time.time()
+        if self.verbose>0:
+            t0 = time.time()
         
         self.learning_rate = max(self.learning_rate, np.floor([X.shape[0]/12])[0])
 
@@ -372,15 +381,16 @@ class TSne():
         if classes is not None:
             self.element_classes = classes
         
-        t1 = time.time()
-        
-        tdiff = t1-t0
-        t_iter = tdiff/self.max_iter
-        print("=================================================================")
-        print("Embedding process finished")
-        print('Execution time:', time.strftime("%H:%M:%S", time.gmtime(tdiff)))
-        print('Time/Iteration:', time.strftime("%H:%M:%S", time.gmtime(t_iter)))
-        print("=================================================================")
+
+        if self.verbose>0:
+            t1 = time.time()
+            tdiff = t1-t0
+            t_iter = tdiff/self.max_iter
+            print("=================================================================")
+            print("Embedding process finished")
+            print('Execution time:', time.strftime("%H:%M:%S", time.gmtime(tdiff)))
+            print('Time/Iteration:', time.strftime("%H:%M:%S", time.gmtime(t_iter)))
+            print("=================================================================")
 
     def gradient_descent_1(self, t, data):
         """Performs the gradient descent in an iterative manner
@@ -446,7 +456,7 @@ class TSne():
         self.best_cost = np.min(self.cost_history)
         self.best_iter = np.where(self.cost_history==self.best_cost)[0][0]
 
-        self.embedding_history = Y
+        self.Y = Y
 
     def gradient_descent_2(self, t, data):
         distances_original = similarities.euclidean_distance_neighbors(data,n_neighbors=self.n_neighbors)
@@ -507,7 +517,7 @@ class TSne():
         elif t not in range(-1,self.max_iter):
             raise ValueError("Cannot show embedding for values of t that are not within the range [-1, {})=".format(self.max_iter))
         
-        embed = np.array(self.embedding_history[t])
+        embed = np.array(self.Y[t])
 
         if self.element_classes is not None:
             labels = self.element_classes.astype(str)
@@ -554,6 +564,13 @@ class TSne():
                 else:
                     for i in range(0,x.shape[0]):
                         plt.plot(x[i],y[i],marker='o',linestyle='', markersize=8)
+            if display_best_iter:
+                title = "Best embedding, achieved at t={} out of {} iterations"
+            else:
+                title = "Embedding at t={} out of {} iterations"
             
-            plt.title("Result for embedding at t={}".format(t))
+
+            plt.title(title.format(t, self.max_iter))
+            
+
             plt.show()
