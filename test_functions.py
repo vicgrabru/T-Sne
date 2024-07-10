@@ -3,6 +3,8 @@ import numpy as np
 
 from mytsnelib import functions, similarities
 import mytsnelib.utils as ut
+import matplotlib.pyplot as plt
+import mytsnelib.metodos_pagina as mtdpg
 
 #======================================================#
 include_n_samples = 300
@@ -13,7 +15,7 @@ n_dimensions = 2
 n_iterations = 1000
 neighbors = 10
 perplexity_tolerance = 0.
-perplexity = 50
+perplexity = 3
 #======================================================#
 
 
@@ -24,17 +26,20 @@ data = data_full[index_start:index_start+include_n_samples,:]
 labels = labels_full[index_start:index_start+include_n_samples]
 
 
+#1: sklearn
+#2: mio
+#3: pagina
+#default: otra cosa
+probando = 2
 
-probando = "MIO"
-
-if probando=="FUNCIONAL":
+if probando==1:
     print("Probando T-Sne de sklearn")
     from sklearn.manifold import TSNE
     data_embedded = TSNE(n_components=n_dimensions, learning_rate='auto', init='random', perplexity=perplexity, verbose=1).fit_transform(data)
     ut.display_embed(data_embedded, labels)
     
 
-elif probando=="MIO":
+elif probando==2:
     print("Probando T-Sne mio")
     model = functions.TSne(n_dimensions=n_dimensions,perplexity_tolerance=perplexity_tolerance,max_iter=n_iterations,n_neighbors=neighbors,perplexity=perplexity)
 
@@ -54,6 +59,14 @@ elif probando=="MIO":
 
     
     model.display_embed(-5)
+
+elif probando==3:
+    print("Probando T-Sne de la pagina")
+    from sklearn.datasets import load_digits
+    X, y = load_digits(return_X_y=True)
+    res = mtdpg.tsne(data, T=1000, l=200, perp=40)
+    plt.scatter(res[:, 0], res[:, 1], s=20)
+    plt.show()
 
 else:
     print("Probando otra cosa")

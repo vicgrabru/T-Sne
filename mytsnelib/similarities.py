@@ -99,8 +99,8 @@ def euclidean_distance(X:np.ndarray, Y:np.ndarray=None, X_dot_product:np.ndarray
     X, Y, X_dot_product, Y_dot_product = check_arrays_compatible(X,Y,X_dot_product,Y_dot_product)
     
     
-    # result = __euclidean_distance_1(X,Y,X_dot_products,Y_dot_products)
-    result = __euclidean_distance_2(X,Y)
+    result = __euclidean_distance_1(X,Y,X_dot_product,Y_dot_product)
+    # result = __euclidean_distance_2(X,Y)
     check_nan_inf(result,True)
 
     return result
@@ -166,6 +166,7 @@ def euclidean_distance_neighbors(X:np.ndarray, Y:np.ndarray=None, X_dot_products
         and the row vectors of `Y` with the (n_samples_X-n_neighbors)
         farthest neighbors replaced with np.inf.
     """
+    #distancia euclidea haciendo la raiz cuadrada
     distances = euclidean_distance(X,Y, X_dot_products, Y_dot_products)
     
     nearest_index = find_nearest_neighbors_index(distances,n_neighbors)
@@ -184,12 +185,17 @@ def conditional_p(distances:np.ndarray, deviations:np.ndarray):
     """Compute the conditional similarities p_{j|i} and p_{i|j}
     using the distances and standard deviations 
     """
-    probs = np.exp(-0.5*np.square(distances)/np.square(deviations.reshape(-1,1)))
+    probs = np.exp(-np.square(distances)/(2*np.square(deviations.reshape(-1,1))))
     
-    probs += min_double
-    result = probs/np.sum(probs, axis=1)
+    #probs += min_double
+    #result = probs/np.sum(probs, axis=1)
+    #return result
 
+    np.fill_diagonal(probs, 0.)
+    probs+=1e-8
+    result = probs / probs.sum(axis=1).reshape([-1,1])
     return result
+
 
 def perplexity_from_conditional_p(cond_p:np.ndarray):
     """Compute the perplexity from the conditional p_{j|i} and p_{i|j}
@@ -199,7 +205,11 @@ def perplexity_from_conditional_p(cond_p:np.ndarray):
     perp = -np.sum(cond_p*np.log2(cond_p),1)
     return 2**perp
 
-def search_deviations(distances:np.ndarray, perplexity=10, tolerance=0.1):
+
+
+
+
+def search_deviations_1(distances:np.ndarray, perplexity=10, tolerance=0.1, iters=1000):
     """Obtain the Standard Deviations (σ) of each point in the given set (from the distances) such that
     the perplexities obtained when using them for the calculations of the conditional similarities will be
     within the given perplexity range.
@@ -222,47 +232,69 @@ def search_deviations(distances:np.ndarray, perplexity=10, tolerance=0.1):
     -------
     deviation : ndarray of shape (1, n_samples) of the Standard Deviations for each point.
     """
+    result = np.zeros(distances.shape[0])
+
     max_perp = (1+tolerance) * perplexity
     min_perp = max(min_double, (1-tolerance) * perplexity) 
     
-
     n = distances.shape[0]
-    max_deviation = 1000 * np.ones(shape=(n,))
-    min_deviation = min_double*np.ones(shape=(n,)) + min_double
+    max_deviations = 1000 * np.ones(shape=(n,))
+    min_deviations = min_double*np.ones(shape=(n,)) + min_double
+    
+    while i < iters and not np.array_equal(min_deviations, max_deviations):
+        i+=1
+        computed_deviations = (max_deviations+min_deviations)/2
+        cond_p = conditional_p(distances,computed_deviations)
+        perplexities = perplexity_from_conditional_p(cond_p)
+        for i in range(0,n):
+            if perplexities[i]>=min_perp:
+                max_deviations[i] = computed_deviations[i]
+            if perplexities[i]<=max_perp:
+                min_deviations[i] = computed_deviations[i]
+        
+        max_dev_temp = max_deviations
+        min_dev_temp = min_deviations
+        max_deviations = np.where(perplexities>=min_perp, computed_deviations, max_dev_temp)
+        min_deviations = np.where(perplexities<=max_perp, computed_deviations, min_dev_temp)
+    return computed_deviations
+
+def search_deviations_2(distances:np.ndarray, perplexity=10, tolerance=0.1, iters=1000):
+    result = np.zeros(distances.shape[0])
+    for i in range(distances.shape[0]):
+        func = lambda sig: perplexity_from_conditional_p(conditional_p(distances[i:i+1, :], np.array([sig])))
+        result[i] = __search_deviation_indiv(func, perplexity)
+    return result
+
+def __search_deviation_indiv(func, perplexity_goal, tolerance=1e-10, max_iters=1000, min_deviation=1e-20, max_deviation=10000):
+    for _ in range(max_iters):
+        computed_deviation = (min_deviation+max_deviation)/2.
+        perplexity = func(computed_deviation)
+        if perplexity > perplexity_goal:
+            max_deviation = computed_deviation
+        else:
+            min_deviation = computed_deviation
+        if np.abs(perplexity - perplexity_goal) <= tolerance:
+            return computed_deviation
+    return computed_deviation
+
+
 
 def search_deviations_exact(distances:np.ndarray, perplexity=10, iters=1000):
-    #max_perp = (1+tolerance) * perplexity
-    #min_perp = max(min_double, (1-tolerance) * perplexity) 
-    
     i = 0
     n = distances.shape[0]
     max_deviation = 1000 * np.ones(shape=(n,))
     min_deviation = min_double*np.ones(shape=(n,)) + min_double
 
-    # while not np.array_equal(min_deviation, max_deviation) and max(np.divide((max_deviation-min_deviation),min_deviation))>=tolerance:
-    while i != iters and not np.array_equal(min_deviation, max_deviation):
+    while i < iters and not np.array_equal(min_deviation, max_deviation):
+        i+=1
         computed_deviation = (max_deviation+min_deviation)/2
-
         cond_p = conditional_p(distances,computed_deviation)
-
         perplexities = perplexity_from_conditional_p(cond_p)
-
-        
-
         for i in range(0,n):
             if perplexities[i]>perplexity:
                 max_deviation[i] = computed_deviation[i]
-
-            if perplexities[i]<perplexity:
+            else:
                 min_deviation[i] = computed_deviation[i]
-        
-        i+=1
-        # max_dev_temp = max_deviation
-        # min_dev_temp = min_deviation
-        # max_deviation = np.where(perplexities>=min_perp, computed_deviation, max_dev_temp)
-        # min_deviation = np.where(perplexities<=max_perp, computed_deviation, min_dev_temp)
-        
-
     return computed_deviation
 
 def conditional_probabilities_from_distances(distances:np.ndarray, perplexity:int, tolerance:float=None):
@@ -293,8 +325,9 @@ def conditional_probabilities_from_distances(distances:np.ndarray, perplexity:in
     probabilities : ndarray of shape (n_samples, n_samples) that contains the conditional probabilities between the points given.
     """
     
-    #devs = search_deviations(distances,perplexity,tolerance)
-    devs = search_deviations_exact(distances,perplexity)
+    # devs = search_deviations_1(distances,perplexity,tolerance)
+    devs = search_deviations_2(distances,perplexity,tolerance)
+    # devs = search_deviations_exact(distances,perplexity)
     return conditional_p(distances, devs)
 
 def joint_probabilities(distances:np.ndarray, perplexity:int, tolerance:float=None, distribution='gaussian'):
@@ -386,3 +419,43 @@ def get_neighbors_ranked_by_distance(distances):
             result[i][ind_rank] = j+1
         result[i] = index_sorted
     return result
+
+
+
+#======================================================================
+#======================================================================
+#================Aqui comienzan los de la pagina=======================
+#======================================================================
+#======================================================================
+
+def find_sigmas(dists, perplexity):
+    found_sigmas = np.zeros(dists.shape[0])
+    for i in range(dists.shape[0]):
+        func = lambda sig: perp(p_conditional(dists[i:i+1, :], np.array([sig])))
+        found_sigmas[i] = search(func, perplexity)
+    return found_sigmas
+
+def search(func, goal, tol=1e-10, max_iters=1000, lowb=1e-20, uppb=10000):
+    for _ in range(max_iters):
+        guess = (uppb + lowb) / 2.
+        val = func(guess)
+
+        if val > goal:
+            uppb = guess
+        else:
+            lowb = guess
+
+        if np.abs(val - goal) <= tol:
+            return guess
+
+    return guess
+
+def p_conditional(dists, sigmas):
+    e = np.exp(-dists / (2 * np.square(sigmas.reshape((-1,1)))))
+    np.fill_diagonal(e, 0.)
+    e += 1e-8
+    return e / e.sum(axis=1).reshape([-1,1])
+
+def perp(condi_matr):
+    ent = -np.sum(condi_matr * np.log2(condi_matr), 1)
+    return 2 ** ent

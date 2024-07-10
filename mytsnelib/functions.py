@@ -141,10 +141,10 @@ class TSne():
 
     def __init__(self, *, n_dimensions=2, perplexity=30, perplexity_tolerance=0.1, n_neighbors = 10,
                  metric='euclidean', init_method="random", init_embed=None, early_exaggeration=4,seed=None,
-                 learning_rate=200, max_iter=1000, momentum_params=[250.0,0.5,0.8]):
+                 learning_rate=200, max_iter=1000, momentum_params=[250.0,0.5,0.8], use_best_iter=True):
         #validacion de parametros
         self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,
-                                early_exaggeration, learning_rate, max_iter, momentum_params, seed)
+                                early_exaggeration, learning_rate, max_iter, momentum_params, use_best_iter, seed)
 
 
         if n_neighbors==None:
@@ -161,22 +161,35 @@ class TSne():
         self.embed = init_embed
         self.momentum_params = momentum_params
         self.early_exaggeration = early_exaggeration
-        self.embedding_current_t = 0
+        
         self.n_neighbors = n_neighbors
+        self.use_best_iter = use_best_iter
 
 
         #set parameters to use later
-        self.element_classes = None
-        self.embedding_history = None
-        self.best_cost = np.finfo(float).max
-        self.best_iter = max_iter
-        self.cost_history = None
+        descent=2
+        if descent==1:
+            self.embedding_current_t = 0
+            self.element_classes = None
+            self.embedding_history = None
+            self.best_cost = np.finfo(float).max
+            self.best_iter = max_iter
+            self.cost_history = None
+        else:
+            self.element_classes = None
+            self.Y = []
+            self.embed_dist_history = []
+            self.affinities_history = []
+            self.cost_history = []
+            self.best_cost = None
+            self.best_iter = None
+
 
         #set the seed
         self.random_state = np.random.RandomState(seed) if seed is not None else None
 
     def __input_validation(self,n_dimensions,perplexity,perplexity_tolerance,n_neighbors,metric,init_method,init_embed,
-                           early_exaggeration,learning_rate,max_iter,momentum_params, seed):
+                           early_exaggeration,learning_rate,max_iter,momentum_params, use_best_iter, seed):
         accepted_methods = ["random", "precomputed"]
         accepted_metrics=["euclidean"]
         accepted_momentum_param_types = [np.float64,np.float32]
@@ -284,6 +297,11 @@ class TSne():
             elif not (momentum_params[0]).is_integer():
                 raise ValueError("The time threshold cant be a decimal number")
 
+        # use_best_iter: boolean
+        if use_best_iter is not None:
+            if not not isinstance(use_best_iter, bool):
+                raise ValueError("use_best_iter must be a bool")
+
         # seed: int
         if seed is not None:
             if not isinstance(seed, int):
@@ -292,15 +310,12 @@ class TSne():
                 raise ValueError("seed must be a positive integer")
 
     def __momentum(self,t):
-        t_limit = self.momentum_params[0]
-        m1 = self.momentum_params[1]
-        m2 = self.momentum_params[2]
-        
-        if t>t_limit:
+        if t>self.momentum_params[0]:
             self.early_exaggeration=1
-            return m2
+            result = self.momentum_params[2]
         else:
-            return m1
+            result = self.momentum_params[1]
+        return result
 
     def initial_embed(self, *, data, zeros=False):
         """Returns an initial embedding following the given parameters.
@@ -365,7 +380,8 @@ class TSne():
         if X.shape[0]-1 < self.n_neighbors:
             self.n_neighbors = X.shape[0]-1
 
-        self.gradient_descent(self.max_iter, X)
+
+        self.gradient_descent_2(self.max_iter, X)
         
         if classes is not None:
             self.element_classes = classes
@@ -374,11 +390,13 @@ class TSne():
         
         tdiff = t1-t0
         t_iter = tdiff/self.max_iter
+        print("=================================================================")
         print("Embedding process finished")
         print('Execution time:', time.strftime("%H:%M:%S", time.gmtime(tdiff)))
         print('Time/Iteration:', time.strftime("%H:%M:%S", time.gmtime(t_iter)))
+        print("=================================================================")
 
-    def gradient_descent(self, t, data, return_evolution=False):
+    def gradient_descent_1(self, t, data, return_evolution=False):
         """Performs the gradient descent in an iterative manner
 
         Parameters
@@ -406,40 +424,31 @@ class TSne():
 
         affinities_original = similarities.joint_probabilities(distances_original, self.perplexity, self.perplexity_tolerance)
 
+        #embed_history.shape=(max_iters, X.shape[0], n_dimensions)
         Y = np.zeros(shape=(t, data.shape[0], self.n_dimensions))
         self.cost_history = np.zeros(shape=t)
-
 
         if self.embed is None:
             Y[0] = self.initial_embed(data=data)
         else:
             Y[0] = self.embed
 
-        Y[1] = Y[0]
-        
-        
- 
         for i in range(0,t):
-
             distances_embed = similarities.euclidean_distance_neighbors(Y[i], n_neighbors=self.n_neighbors)
             affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-            
             if i<t-1 and i>0:
                 #   con early exaggeration
-                # grad = gradient(affinities_original,self.early_exaggeration*affinities_current,Y[i],n_neighbors=self.n_neighbors,embed_distances=distances_embed)
-
+                grad = gradient(affinities_original,self.early_exaggeration*affinities_current,Y[i],n_neighbors=self.n_neighbors,embed_distances=distances_embed)
                 #   sin early exaggeration
-                grad = gradient(affinities_original,affinities_current,Y[i],n_neighbors=self.n_neighbors,embed_distances=distances_embed)
-
+                # grad = gradient(affinities_original,affinities_current,Y[i],n_neighbors=self.n_neighbors,embed_distances=distances_embed)
 
                 Y[i+1] = Y[i] - self.learning_rate*grad + self.__momentum(i+1)*(Y[i]-Y[i-1])
-            
+
             cost = kl_divergence(affinities_original, affinities_current)
             self.cost_history[i] = cost
             if cost<self.best_cost or i == 0:
                 self.best_cost = cost
                 self.best_iter = i
-            
 
         distances_embed = similarities.euclidean_distance_neighbors(Y[t-1], n_neighbors=self.n_neighbors)
         affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
@@ -460,8 +469,58 @@ class TSne():
         
         if return_evolution:
             return Y
+        elif self.use_best_iter:
+            return Y[self.best_iter]
         else:
             return Y[t-1]
+
+    def gradient_descent_2(self, t, data, return_evolution=False):
+        #con los vecinos indicados
+        distances_original = similarities.euclidean_distance_neighbors(data,n_neighbors=self.n_neighbors)
+        affinities_original = similarities.joint_probabilities(distances_original, self.perplexity, self.perplexity_tolerance)
+
+
+        if self.embed is None:
+            y = self.initial_embed(data=data)
+        else:
+            y = self.embed
+        
+        dist_embed = similarities.euclidean_distance_neighbors(y, n_neighbors=self.n_neighbors)
+        affinities_embed = similarities.joint_probabilities(dist_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
+        cost = kl_divergence(affinities_original, affinities_embed)
+        self.best_cost = cost
+        self.best_iter = 1
+
+        self.Y.append(y); self.Y.append(y)
+        self.affinities_history.append(affinities_embed); self.affinities_history.appen(affinities_embed)
+        self.embed_dist_history.append(dist_embed); self.embed_dist_history.append(dist_embed)
+        self.cost_history.append(cost); self.cost_history.append(cost)
+        
+
+        for i in range(2,t):
+            #   con early exaggeration
+            grad = gradient(affinities_original,self.early_exaggeration*self.affinities_history[-1],self.Y[-1],n_neighbors=self.n_neighbors,embed_distances=self.embed_dist_history[-1])
+            #   sin early exaggeration
+            # grad = gradient(affinities_original, self.affinities_history[-1], self.Y[-1], n_neighbors=self.n_neighbors, embed_distances=self.embed_dist_history[-1])
+            y = self.Y[-1] - self.learning_rate*grad + self.__momentum(i)*(self.Y[-1]-self.Y[-2])
+            self.Y.append(y)
+
+            distances_embed = similarities.euclidean_distance_neighbors(self.Y[-1], n_neighbors=self.n_neighbors)
+            affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
+            cost = kl_divergence(affinities_original, affinities_current)
+            
+            self.embed_dist_history.append(distances_embed)
+            self.affinities_history.append(affinities_current)
+            self.cost_history.append(cost)
+            
+            if cost<self.best_cost:
+                self.best_cost = cost
+                self.best_iter = i
+        
+        if self.use_best_iter:
+            self.embed = self.Y[self.best_iter]
+        else:
+            self.embed = self.Y[-1]
 
     def display_embed(self, t:int=None):
         """Displays the resulting embedding.
@@ -480,9 +539,9 @@ class TSne():
                 max_cost = np.max(self.cost_history)
                 t = np.where(self.cost_history==max_cost)[0][0]
             elif t<0:
-                t = self.embedding_current_t
-            elif t>self.embedding_current_t:
-                raise ValueError("Cannot show embedding for t>{}".format(self.embedding_current_t))
+                t = self.max_iter-1
+            elif t>=self.max_iter:
+                raise ValueError("Cannot show embedding for t>={}".format(self.max_iter))
             else:
                 t = self.best_iter
         
