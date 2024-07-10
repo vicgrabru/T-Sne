@@ -1,5 +1,6 @@
 import csv
 import numpy as np
+import matplotlib.pyplot as plt
 def read_csv(route, has_labels=False):
     """Read a csv file in the given route.
 
@@ -32,4 +33,16 @@ def read_csv(route, has_labels=False):
         else:
             entries = array_reader[:n_entries, :n_columns]
             return entries
-        
+def display_embed(embedded_data, labels):
+    embed_T = embedded_data.T
+    x = embed_T[0]
+    y = embed_T[1]
+    for i in range(0,x.shape[0]):
+        plt.plot(x[i],y[i],marker='o',linestyle='', markersize=5, label=labels[i])
+    
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    plt.legend(by_label.values(), by_label.keys(), draggable=True)
+
+    plt.show()

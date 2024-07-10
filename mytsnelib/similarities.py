@@ -4,7 +4,68 @@ max_int = 2147483647
 min_double = np.finfo(np.double).eps
 max_iters_deviation = 1000
 
-def euclidean_distance(X:np.ndarray, Y:np.ndarray=None, X_dot_products:np.ndarray=None, Y_dot_products:np.ndarray=None, return_squared=False):
+def check_nan_inf(x:np.ndarray, check_neg=False):
+    if np.nan in x:
+        raise ValueError("NaN in array")
+    if np.inf in x:
+        raise ValueError("inf in array")
+    if check_neg and np.where(x<0)[0].__len__()>0:
+        raise ValueError("array cant have negative values")
+
+def check_arrays_compatible(X:np.ndarray,Y:np.ndarray=None,X_dot_product:np.ndarray=None,Y_dot_product:np.ndarray=None):
+    """Returns the X and Y arrays so they are compatible for the distance calculation
+    
+    Parameters
+    ----------
+    X : {array-like, sparse matrix} of shape (n_samples_X, n_features)
+        An array where each row is a sample and each column is a feature.
+
+    Y : {array-like, sparse matrix} of shape (n_samples_Y, n_features), \
+            default=None
+        An array where each row is a sample and each column is a feature.
+        Optional. If None, it assumes `Y=X`.
+
+    Returns
+    -------
+    X : ndarray version of X.
+
+    Y : ndarray version of Y.
+    """
+    check_nan_inf(X)
+    if Y==None:
+        Y = X
+    else:
+        check_nan_inf(Y)
+    
+    if X.shape[1] != Y.shape[1]:
+        raise ValueError("Arrays must contain the same number of columns.")
+    if X.dtype != Y.dtype:
+        raise ValueError("Arrays must be of the same data type.")
+    
+    if X_dot_product is not None:
+        if X_dot_product.shape[1] != X.shape[0]:
+            raise ValueError("X_dot_products must be of shape (X.rows, 1).")
+        if X_dot_product.dtype != X.dtype:
+            raise ValueError("X_dot_products must be of the same data type as X.")
+    else:
+        X_dot_product = (X*X).sum(axis=1)
+
+    check_nan_inf(X_dot_product)
+
+    if Y_dot_product is not None:
+        if Y_dot_product.shape[1] != Y.shape[0]:
+            raise ValueError("Y_dot_products must be of shape (Y.rows, 1).")
+        if Y_dot_product.dtype != Y.dtype:
+            raise ValueError("Y_dot_products must be of the same data type as Y.")
+    else:
+        Y_dot_product = (Y * Y).sum(axis=1)
+    
+    check_nan_inf(Y_dot_product)
+    
+
+    return X,Y,X_dot_product,Y_dot_product
+
+def euclidean_distance(X:np.ndarray, Y:np.ndarray=None, X_dot_product:np.ndarray=None, Y_dot_product:np.ndarray=None):
     """Compute the euclidean distances between the vectors of X and Y.
     
     
@@ -22,8 +83,8 @@ def euclidean_distance(X:np.ndarray, Y:np.ndarray=None, X_dot_products:np.ndarra
             or (1, n_samples_Y), default=None
         Pre-computed dot-products of vectors in Y
 
-    squared : bool, default=False
-        If True, returns squared euclidean distances.
+    return_square_rooted : bool, default=False
+        If True, returns square rooted euclidean distances.
 
     X_norm_squared : array-like of shape (n_samples_X,) or (n_samples_X, 1) \
             or (1, n_samples_X), default=None
@@ -35,48 +96,17 @@ def euclidean_distance(X:np.ndarray, Y:np.ndarray=None, X_dot_products:np.ndarra
         Returns the distances between the row vectors of `X`
         and the row vectors of `Y`.
     """
-    X, Y = check_arrays_compatible(X,Y)
-    if X_dot_products is not None:
-        if X_dot_products.shape[1] != X.shape[0]:
-            raise ValueError("X_dot_products must be of shape (X.rows, 1).")
-        if X_dot_products.dtype != X.dtype:
-            raise ValueError("X_dot_products must be of the same data type as X.")
-    else:
-        X_dot_products = (X*X).sum(axis=1)
-
-
-    if Y_dot_products is not None:
-        if Y_dot_products.shape[1] != Y.shape[0]:
-            raise ValueError("Y_dot_products must be of shape (Y.rows, 1).")
-        if Y_dot_products.dtype != Y.dtype:
-            raise ValueError("Y_dot_products must be of the same data type as Y.")
-    else:
-        Y_dot_products = (Y * Y).sum(axis=1)
-    
-    if np.nan in X_dot_products:
-        raise ValueError("X_dot_products contains NaN")
-    if np.inf in X_dot_products:
-        raise ValueError("X_dot_products contains inf")
-    
-    if np.nan in Y_dot_products:
-        raise ValueError("Y_dot_products contains NaN")
-    if np.inf in Y_dot_products:
-        raise ValueError("Y_dot_products contains inf")
+    X, Y, X_dot_product, Y_dot_product = check_arrays_compatible(X,Y,X_dot_product,Y_dot_product)
     
     
-    result = __euclidean_distance(X,Y,X_dot_products,Y_dot_products,return_squared)
-    
-    if np.nan in result:
-        raise ValueError("Distance contains NaN, wrong metric")
-    if np.inf in result:
-        raise ValueError("Distance can't be infinite, wrong metric")
-    if np.where(result<0)[0].__len__()>0:
-        raise ValueError("Distance can't be negative, wrong metric")
+    # result = __euclidean_distance_1(X,Y,X_dot_products,Y_dot_products)
+    result = __euclidean_distance_2(X,Y)
+    check_nan_inf(result,True)
 
     return result
 
 
-def __euclidean_distance(X, Y, X_dot_products, Y_dot_products, return_squared):
+def __euclidean_distance_1(X, Y, X_dot_products, Y_dot_products):
     """This is where the euclidean distances are calculated.
     """
     XX = X_dot_products.reshape(-1,1)
@@ -89,9 +119,22 @@ def __euclidean_distance(X, Y, X_dot_products, Y_dot_products, return_squared):
     dist += YY
 
     dist = np.abs(dist)
-    return dist if not return_squared else np.sqrt(dist)
+    return np.sqrt(dist)
 
-def euclidean_distance_neighbors(X:np.ndarray, Y:np.ndarray=None, X_dot_products:np.ndarray=None, Y_dot_products:np.ndarray=None, return_squared=False, n_neighbors=10):
+def __euclidean_distance_2(X,Y):
+    result = np.zeros(shape=(X.shape[0], X.shape[0]))
+    for i in range(0,X.shape[0]):
+        for j in range(0, Y.shape[0]):
+            aux = 0.0
+            for k in range(0, X.shape[1]):
+                aux += np.power(X[i][k]-Y[j][k],2)
+            
+            result[i][j] = np.sqrt(aux)
+    return result
+
+
+
+def euclidean_distance_neighbors(X:np.ndarray, Y:np.ndarray=None, X_dot_products:np.ndarray=None, Y_dot_products:np.ndarray=None, n_neighbors=10):
     """Same as the euclidean_distance method, but replaces with np.inf every distance
     except those corresponding to the nearest n_neighbors.
     
@@ -123,7 +166,7 @@ def euclidean_distance_neighbors(X:np.ndarray, Y:np.ndarray=None, X_dot_products
         and the row vectors of `Y` with the (n_samples_X-n_neighbors)
         farthest neighbors replaced with np.inf.
     """
-    distances = euclidean_distance(X,Y, X_dot_products, Y_dot_products, return_squared)
+    distances = euclidean_distance(X,Y, X_dot_products, Y_dot_products)
     
     nearest_index = find_nearest_neighbors_index(distances,n_neighbors)
     n = distances.shape[0]
@@ -135,53 +178,13 @@ def euclidean_distance_neighbors(X:np.ndarray, Y:np.ndarray=None, X_dot_products
 
     return distances
 
-def check_arrays_compatible(X:np.ndarray,Y:np.ndarray=None):
-    """Returns the X and Y arrays so they are compatible for the distance calculation
-    
-    Parameters
-    ----------
-    X : {array-like, sparse matrix} of shape (n_samples_X, n_features)
-        An array where each row is a sample and each column is a feature.
 
-    Y : {array-like, sparse matrix} of shape (n_samples_Y, n_features), \
-            default=None
-        An array where each row is a sample and each column is a feature.
-        Optional. If None, it assumes `Y=X`.
-
-    Returns
-    -------
-    X : ndarray version of X.
-
-    Y : ndarray version of Y.
-    """
-    if not isinstance(X, np.ndarray):
-        X = np.asarray(X)
-    if Y==None:
-        Y = X
-    elif not isinstance(Y, np.ndarray):
-        Y = np.asarray(Y)
-    
-    if np.nan in X:
-        raise ValueError("X contains NaN")
-    if np.inf in X:
-        raise ValueError("X contains inf")
-    
-    if np.nan in Y:
-        raise ValueError("Y contains NaN")
-    if np.inf in Y:
-        raise ValueError("Y contains inf")
-    
-    if X.shape[1] != Y.shape[1]:
-        raise ValueError("Arrays must contain the same number of columns.")
-    if X.dtype != Y.dtype:
-        raise ValueError("Arrays must be of the same data type.")
-    return X,Y
 
 def conditional_p(distances:np.ndarray, deviations:np.ndarray):
     """Compute the conditional similarities p_{j|i} and p_{i|j}
     using the distances and standard deviations 
     """
-    probs = np.exp(-distances/2*np.square(deviations.reshape(-1,1)))
+    probs = np.exp(-0.5*np.square(distances)/np.square(deviations.reshape(-1,1)))
     
     probs += min_double
     result = probs/np.sum(probs, axis=1)
@@ -227,22 +230,38 @@ def search_deviations(distances:np.ndarray, perplexity=10, tolerance=0.1):
     max_deviation = 1000 * np.ones(shape=(n,))
     min_deviation = min_double*np.ones(shape=(n,)) + min_double
 
-    while True:
+def search_deviations_exact(distances:np.ndarray, perplexity=10, iters=1000):
+    #max_perp = (1+tolerance) * perplexity
+    #min_perp = max(min_double, (1-tolerance) * perplexity) 
+    
+    i = 0
+    n = distances.shape[0]
+    max_deviation = 1000 * np.ones(shape=(n,))
+    min_deviation = min_double*np.ones(shape=(n,)) + min_double
 
-        
+    # while not np.array_equal(min_deviation, max_deviation) and max(np.divide((max_deviation-min_deviation),min_deviation))>=tolerance:
+    while i != iters and not np.array_equal(min_deviation, max_deviation):
         computed_deviation = (max_deviation+min_deviation)/2
 
         cond_p = conditional_p(distances,computed_deviation)
 
         perplexities = perplexity_from_conditional_p(cond_p)
 
-        max_dev_temp = max_deviation
-        min_dev_temp = min_deviation
-
-        max_deviation = np.where(perplexities>=min_perp, computed_deviation, max_dev_temp)
-        min_deviation = np.where(perplexities<=max_perp, computed_deviation, min_dev_temp)
         
-        if np.array_equal(min_deviation, max_deviation) or max((max_deviation-min_deviation)/min_deviation)<max(tolerance, 0.001):break
+
+        for i in range(0,n):
+            if perplexities[i]>perplexity:
+                max_deviation[i] = computed_deviation[i]
+
+            if perplexities[i]<perplexity:
+                min_deviation[i] = computed_deviation[i]
+        
+        i+=1
+        # max_dev_temp = max_deviation
+        # min_dev_temp = min_deviation
+        # max_deviation = np.where(perplexities>=min_perp, computed_deviation, max_dev_temp)
+        # min_deviation = np.where(perplexities<=max_perp, computed_deviation, min_dev_temp)
+        
 
     return computed_deviation
 
@@ -274,7 +293,8 @@ def conditional_probabilities_from_distances(distances:np.ndarray, perplexity:in
     probabilities : ndarray of shape (n_samples, n_samples) that contains the conditional probabilities between the points given.
     """
     
-    devs = search_deviations(distances,perplexity,tolerance)
+    #devs = search_deviations(distances,perplexity,tolerance)
+    devs = search_deviations_exact(distances,perplexity)
     return conditional_p(distances, devs)
 
 def joint_probabilities(distances:np.ndarray, perplexity:int, tolerance:float=None, distribution='gaussian'):
@@ -304,15 +324,14 @@ def joint_probabilities(distances:np.ndarray, perplexity:int, tolerance:float=No
     elif distribution=='gaussian':
         n = distances.shape[0]
         cond_probs = conditional_probabilities_from_distances(distances,perplexity,tolerance)
-        # np.fill_diagonal(cond_probs, min_double)
         result = (cond_probs+cond_probs.T)/(2*n)
     
     elif distribution=='t-student':
-        dist = np.ones_like(distances) + distances
-        result = 2. * np.sum(1/dist)
-        result = 1/(dist*result)
-    
-    
+        aux = np.power(distances,2) + 1
+        d1 = np.power(aux, -1)
+        d2 = np.copy(d1)
+        np.fill_diagonal(d2, 0.)
+        result = d1/np.sum(d2)
     return np.where(result>0.,result,min_double) 
         
 
@@ -356,7 +375,10 @@ def find_nearest_neighbors_index(distances:np.ndarray, n_neighbors:int):
 def get_neighbors_ranked_by_distance(distances):
     if distances.shape.__len__()!=2 or distances.shape[0] != distances.shape[1]:
         raise ValueError("distances must be a square 2D array")
+    
+    
     result = np.ones_like(distances).astype(int)
+    #recorrer los individuos
     for i in range(0, distances.shape[0]):
         index_sorted = np.argsort(distances[i])
         for j in range(0, distances.shape[1]):
