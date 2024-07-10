@@ -158,7 +158,7 @@ class TSne():
         self.init_method = init_method
         self.learning_rate = learning_rate
         self.max_iter = max_iter
-        self.embed = init_embed
+        self.init_embed = init_embed
         self.momentum_params = momentum_params
         self.early_exaggeration = early_exaggeration
         
@@ -203,6 +203,8 @@ class TSne():
                 raise ValueError("n_dimensions must be finite and not NaN")
             elif n_dimensions<1:
                 raise ValueError("n_dimensions must be a positive number")
+            elif n_dimensions>3:
+                print("**Warning: If you use more than 3 dimensions, you will not be able to display the embedding**")
 
         # perplexity: int
         if perplexity is not None:
@@ -396,7 +398,7 @@ class TSne():
         print('Time/Iteration:', time.strftime("%H:%M:%S", time.gmtime(t_iter)))
         print("=================================================================")
 
-    def gradient_descent_1(self, t, data, return_evolution=False):
+    def gradient_descent_1(self, t, data):
         """Performs the gradient descent in an iterative manner
 
         Parameters
@@ -405,10 +407,7 @@ class TSne():
             The amount of iterations to perform.
 
         data : ndarray of shape (n_samples, n_features)
-            An array of the data where each row is a sample and each column is a feature. 
-
-        return_evolution: boolean. default = False.
-            Wether or not to return the history of all embeddings.
+            An array of the data where each row is a sample and each column is a feature.
         
         Returns
         -------
@@ -428,10 +427,10 @@ class TSne():
         Y = np.zeros(shape=(t, data.shape[0], self.n_dimensions))
         self.cost_history = np.zeros(shape=t)
 
-        if self.embed is None:
+        if self.init_embed is None:
             Y[0] = self.initial_embed(data=data)
         else:
-            Y[0] = self.embed
+            Y[0] = self.init_embed
 
         for i in range(0,t):
             distances_embed = similarities.euclidean_distance_neighbors(Y[i], n_neighbors=self.n_neighbors)
@@ -463,27 +462,17 @@ class TSne():
         self.best_cost = np.min(self.cost_history)
         self.best_iter = np.where(self.cost_history==self.best_cost)[0][0]
 
-        self.embedding_current_t = t-1
         self.embedding_history = Y
-        self.embed = Y[t-1]
-        
-        if return_evolution:
-            return Y
-        elif self.use_best_iter:
-            return Y[self.best_iter]
-        else:
-            return Y[t-1]
 
-    def gradient_descent_2(self, t, data, return_evolution=False):
-        #con los vecinos indicados
+    def gradient_descent_2(self, t, data):
         distances_original = similarities.euclidean_distance_neighbors(data,n_neighbors=self.n_neighbors)
         affinities_original = similarities.joint_probabilities(distances_original, self.perplexity, self.perplexity_tolerance)
 
 
-        if self.embed is None:
+        if self.init_embed is None:
             y = self.initial_embed(data=data)
         else:
-            y = self.embed
+            y = self.init_embed
         
         dist_embed = similarities.euclidean_distance_neighbors(y, n_neighbors=self.n_neighbors)
         affinities_embed = similarities.joint_probabilities(dist_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
@@ -498,10 +487,11 @@ class TSne():
         
 
         for i in range(2,t):
-            #   con early exaggeration
-            grad = gradient(affinities_original,self.early_exaggeration*self.affinities_history[-1],self.Y[-1],n_neighbors=self.n_neighbors,embed_distances=self.embed_dist_history[-1])
-            #   sin early exaggeration
-            # grad = gradient(affinities_original, self.affinities_history[-1], self.Y[-1], n_neighbors=self.n_neighbors, embed_distances=self.embed_dist_history[-1])
+            grad = gradient(affinities_original,
+                            self.early_exaggeration*self.affinities_history[-1],
+                            self.Y[-1],
+                            n_neighbors=self.n_neighbors,
+                            embed_distances=self.embed_dist_history[-1])
             y = self.Y[-1] - self.learning_rate*grad + self.__momentum(i)*(self.Y[-1]-self.Y[-2])
             self.Y.append(y)
 
@@ -516,35 +506,22 @@ class TSne():
             if cost<self.best_cost:
                 self.best_cost = cost
                 self.best_iter = i
-        
-        if self.use_best_iter:
-            self.embed = self.Y[self.best_iter]
-        else:
-            self.embed = self.Y[-1]
 
-    def display_embed(self, t:int=None):
+    def display_embed(self, *, display_best_iter=False, t:int=-1):
         """Displays the resulting embedding.
 
         Parameters
         ----------
+        display_best_iter: bool, Optional.
+            Whether or not to display the iteration with the lowest cost.
+            If True, the "t" parameter is ignored
         t: int, Optional.
             The embedding iteration to display.
-            If none is given, displays the last iteration.
-            If -5 is given, displays the best iteration.
         """
-        if t is None:
+        if display_best_iter:
             t = self.best_iter
-        else:
-            if t == -5:
-                max_cost = np.max(self.cost_history)
-                t = np.where(self.cost_history==max_cost)[0][0]
-            elif t<0:
-                t = self.max_iter-1
-            elif t>=self.max_iter:
-                raise ValueError("Cannot show embedding for t>={}".format(self.max_iter))
-            else:
-                t = self.best_iter
-        
+        elif t not in range(-1,self.max_iter):
+            raise ValueError("Cannot show embedding for values of t that are not within the range [-1, {})=".format(self.max_iter))
         
         embed = self.embedding_history[t]
 
@@ -556,7 +533,7 @@ class TSne():
         else:
             if self.n_dimensions==3:
                 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-                embed_T = embed.T
+                embed_T = embed.T()
                 x = embed_T[0]
                 y = embed_T[1]
                 z = embed_T[2]
