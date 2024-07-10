@@ -185,10 +185,12 @@ class TSne():
 
 
         #set the seed
-        self.random_state = np.random.RandomState(seed) if seed is not None else None
+        if seed is None:
+            seed = int(time.time())
+        self.random_state = np.random.RandomState(seed)
 
     def __input_validation(self,n_dimensions,perplexity,perplexity_tolerance,n_neighbors,metric,init_method,init_embed,
-                           early_exaggeration,learning_rate,max_iter,momentum_params, use_best_iter, seed):
+                           early_exaggeration,learning_rate,max_iter,momentum_params, seed):
         accepted_methods = ["random", "precomputed"]
         accepted_metrics=["euclidean"]
         accepted_momentum_param_types = [np.float64,np.float32]
@@ -297,11 +299,6 @@ class TSne():
                 raise ValueError("All elements must be positive numbers")
             elif not (momentum_params[0]).is_integer():
                 raise ValueError("The time threshold cant be a decimal number")
-
-        # use_best_iter: boolean
-        if use_best_iter is not None:
-            if not isinstance(use_best_iter, bool):
-                raise ValueError("use_best_iter must be a bool")
 
         # seed: int
         if seed is not None:
