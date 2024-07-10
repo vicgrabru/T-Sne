@@ -90,6 +90,10 @@ else:
     print(b5)
 
 
+    print("\n clase de False:")
+    print(False.__class__)
+
+
 def test_haversine():
     
 

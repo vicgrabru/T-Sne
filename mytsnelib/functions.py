@@ -140,11 +140,11 @@ class TSne():
     """
 
     def __init__(self, *, n_dimensions=2, perplexity=30, perplexity_tolerance=0.1, n_neighbors = 10,
-                 metric='euclidean', init_method="random", init_embed=None, early_exaggeration=4,seed=None,
-                 learning_rate=200, max_iter=1000, momentum_params=[250.0,0.5,0.8], use_best_iter=True):
+                 metric='euclidean', init_method="random", init_embed=None, early_exaggeration=4,
+                 learning_rate=200, max_iter=1000, momentum_params=[250.0,0.5,0.8], seed=None):
         #validacion de parametros
         self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,
-                                early_exaggeration, learning_rate, max_iter, momentum_params, use_best_iter, seed)
+                                early_exaggeration, learning_rate, max_iter, momentum_params, seed)
 
 
         if n_neighbors==None:
@@ -163,7 +163,6 @@ class TSne():
         self.early_exaggeration = early_exaggeration
         
         self.n_neighbors = n_neighbors
-        self.use_best_iter = use_best_iter
 
 
         #set parameters to use later
@@ -301,7 +300,7 @@ class TSne():
 
         # use_best_iter: boolean
         if use_best_iter is not None:
-            if not not isinstance(use_best_iter, bool):
+            if not isinstance(use_best_iter, bool):
                 raise ValueError("use_best_iter must be a bool")
 
         # seed: int
@@ -319,7 +318,7 @@ class TSne():
             result = self.momentum_params[1]
         return result
 
-    def initial_embed(self, *, data, zeros=False):
+    def initial_embed(self, *, data):
         """Returns an initial embedding following the given parameters.
 
         Parameters
@@ -341,23 +340,11 @@ class TSne():
         assert data is not None
         target_shape = (data.shape[0], self.n_dimensions)
 
-        if zeros:
-            embed = np.zeros(shape=target_shape)
-        elif self.random_state is not None:
+        if self.random_state is not None:
             embed = self.random_state.standard_normal(size=target_shape)
         else:
             embed = np.random.standard_normal(size=target_shape)
-            
-        if self.embed is None and not zeros:
-            self.embed = embed
 
-            distances_original = similarities.euclidean_distance_neighbors(data,n_neighbors=self.n_neighbors)
-            affinities_original = similarities.joint_probabilities(distances_original, self.perplexity, self.perplexity_tolerance)
-
-            distances_embed = similarities.euclidean_distance_neighbors(embed, n_neighbors=self.n_neighbors)
-            affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-
-            self.best_cost = kl_divergence(affinities_original, affinities_current)
         return embed
 
     def fit(self, X, classes:np.ndarray=None):
