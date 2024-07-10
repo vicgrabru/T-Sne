@@ -507,7 +507,7 @@ class TSne():
         elif t not in range(-1,self.max_iter):
             raise ValueError("Cannot show embedding for values of t that are not within the range [-1, {})=".format(self.max_iter))
         
-        embed = self.embedding_history[t]
+        embed = np.array(self.embedding_history[t])
 
         if self.element_classes is not None:
             labels = self.element_classes.astype(str)

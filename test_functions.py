@@ -1,7 +1,7 @@
 import numpy as np
 
 
-from mytsnelib import functions, similarities
+from mytsnelib import functions
 import mytsnelib.utils as ut
 import matplotlib.pyplot as plt
 import mytsnelib.metodos_pagina as mtdpg
@@ -14,7 +14,7 @@ index_start = 0
 n_dimensions = 2
 n_iterations = 1000
 neighbors = 10
-perplexity_tolerance = 0.
+perplexity_tolerance = 1e-10
 perplexity = 3
 #======================================================#
 
@@ -35,13 +35,22 @@ probando = 2
 if probando==1:
     print("Probando T-Sne de sklearn")
     from sklearn.manifold import TSNE
-    data_embedded = TSNE(n_components=n_dimensions, learning_rate='auto', init='random', perplexity=perplexity, verbose=1).fit_transform(data)
+    data_embedded = TSNE(n_components=n_dimensions,
+                         learning_rate='auto',
+                         init='random',
+                         perplexity=perplexity,
+                         verbose=1).fit_transform(data)
+    
     ut.display_embed(data_embedded, labels)
     
 
 elif probando==2:
     print("Probando T-Sne mio")
-    model = functions.TSne(n_dimensions=n_dimensions,perplexity_tolerance=perplexity_tolerance,max_iter=n_iterations,n_neighbors=neighbors,perplexity=perplexity)
+    model = functions.TSne(n_dimensions=n_dimensions,
+                           perplexity_tolerance=perplexity_tolerance,
+                           max_iter=n_iterations,
+                           n_neighbors=neighbors,
+                           perplexity=perplexity)
 
     model.fit(data,classes=labels)
 
