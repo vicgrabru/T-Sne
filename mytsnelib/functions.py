@@ -139,7 +139,7 @@ class TSne():
     TODO escribir un tooltip en condiciones xd
     """
 
-    def __init__(self, *, n_dimensions=2, perplexity=30, perplexity_tolerance=0.1, n_neighbors = 10,
+    def __init__(self, *, n_dimensions=2, perplexity=30, perplexity_tolerance=1e-10, n_neighbors = 10,
                  metric='euclidean', init_method="random", init_embed=None, early_exaggeration=4,
                  learning_rate=200, max_iter=1000, momentum_params=[250.0,0.5,0.8], seed=None):
         #validacion de parametros
@@ -465,7 +465,7 @@ class TSne():
         self.best_iter = 1
 
         self.Y.append(y); self.Y.append(y)
-        self.affinities_history.append(affinities_embed); self.affinities_history.appen(affinities_embed)
+        self.affinities_history.append(affinities_embed); self.affinities_history.append(affinities_embed)
         self.embed_dist_history.append(dist_embed); self.embed_dist_history.append(dist_embed)
         self.cost_history.append(cost); self.cost_history.append(cost)
         
