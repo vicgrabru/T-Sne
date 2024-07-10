@@ -56,19 +56,32 @@ elif probando==2:
 
     model.fit(data,classes=labels)
 
-    min_cost = min(model.cost_history)
-    print("model.best_cost != min(model.cost_history): {}".format(model.best_cost!=min_cost))
-
-    print("best_iter:{}".format(model.best_iter))
-    print("best_cost:{}".format(model.best_cost))
-
-    trustworthiness = functions.trustworthiness(data, model.Y[model.best_iter], model.n_neighbors)
-    
-    print("trustworthiness: {}".format(trustworthiness))
-
-    
-    model.display_embed(display_best_iter=True)
     model.display_embed(t=-1)
+    model.display_embed(display_best_iter_cost=True)
+    model.display_embed(display_best_iter_trust=True)
+
+    
+    
+    trustworthinessCost = functions.trustworthiness(data, model.Y[model.best_iter_cost], model.n_neighbors)
+    print("======================================================")
+    print("===========Cost=======================================")
+    print("best_iter_cost:{}".format(model.best_iter_cost))
+    print("best_cost:{}".format(model.best_cost))
+    print("trustworthiness of the best cost embedding: {}".format(trustworthinessCost))
+    print("======================================================")
+
+
+    print("======================================================")
+    print("===========Trust======================================")
+    trustworthinessTrust = functions.trustworthiness(data, model.Y[model.best_iter_trust], model.n_neighbors)
+    print("best_iter_trust:{}".format(model.best_iter_trust))
+    print("best_trust:{}".format(model.best_trust))
+    print("trustworthiness of the best trust embedding: {}".format(trustworthinessTrust))
+    print("======================================================")
+    print("======================================================")
+    
+    
+    
 
 elif probando==3:
     print("Probando T-Sne de la pagina")

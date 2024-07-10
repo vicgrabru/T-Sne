@@ -80,6 +80,8 @@ def gradient(high_dimension_probs, low_dimension_probs, embed,*, n_neighbors=Non
     
     return gradient
 
+
+
 def kl_divergence(high_dimension_p, low_dimension_q):
     """Computes the Kullback-Leibler divergence
     Parameters
@@ -141,7 +143,7 @@ class TSne():
 
     def __init__(self, *, n_dimensions=2, perplexity=30, perplexity_tolerance=1e-10, n_neighbors = 10,
                  metric='euclidean', init_method="random", init_embed=None, early_exaggeration=4,
-                 learning_rate=200, max_iter=1000, momentum_params=[250.0,0.5,0.8], seed=None, verbose=0):
+                 learning_rate=500, max_iter=1000, momentum_params=[250.0,0.5,0.8], seed=None, verbose=0):
         #validacion de parametros
         self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,
                                 early_exaggeration, learning_rate, max_iter, momentum_params, seed, verbose)
@@ -164,25 +166,18 @@ class TSne():
         self.n_neighbors = n_neighbors
         self.verbose = verbose
 
-
         #set parameters to use later
-        descent=2
-        if descent==1:
-            self.embedding_current_t = 0
-            self.element_classes = None
-            self.Y = None
-            self.best_cost = np.finfo(float).max
-            self.best_iter = max_iter
-            self.cost_history = None
-        else:
-            self.element_classes = None
-            self.Y = []
-            self.embed_dist_history = []
-            self.affinities_history = []
-            self.cost_history = []
-            self.best_cost = None
-            self.best_iter = None
-
+        self.element_classes = None
+        self.Y = []
+        self.embed_dist_history = []
+        self.affinities_history = []
+        self.cost_history = []
+        self.trust_history = []
+        self.best_cost = None
+        self.best_trust = None
+        #self.best_iter = None
+        self.best_iter_cost = None
+        self.best_iter_trust = None
 
         #set the seed
         if seed is None:
@@ -343,14 +338,11 @@ class TSne():
 
         """
         assert data is not None
-        target_shape = (data.shape[0], self.n_dimensions)
 
-        if self.random_state is not None:
-            embed = self.random_state.standard_normal(size=target_shape)
-        else:
-            embed = np.random.standard_normal(size=target_shape)
+        if self.init_embed is None:
+            self.init_embed = self.random_state.standard_normal(size=(data.shape[0], self.n_dimensions))
 
-        return embed
+        return self.init_embed
 
     def fit(self, X, classes:np.ndarray=None):
         """Fit the given data and perform the embedding
@@ -362,7 +354,6 @@ class TSne():
         classes: 1-D array of size (n_samples). Optional.
             Array with the class that each element in X belongs to.
         """
-    
     
         if self.verbose>0:
             t0 = time.time()
@@ -376,7 +367,7 @@ class TSne():
             self.n_neighbors = X.shape[0]-1
 
 
-        self.gradient_descent_2(self.max_iter, X)
+        self.gradient_descent(self.max_iter, X)
         
         if classes is not None:
             self.element_classes = classes
@@ -392,7 +383,7 @@ class TSne():
             print('Time/Iteration:', time.strftime("%H:%M:%S", time.gmtime(t_iter)))
             print("=================================================================")
 
-    def gradient_descent_1(self, t, data):
+    def gradient_descent(self, t, data):
         """Performs the gradient descent in an iterative manner
 
         Parameters
@@ -411,54 +402,6 @@ class TSne():
         
         Note: Updates the value of the embedding_history parameter.
         """
-        
-        #con los vecinos indicados
-        distances_original = similarities.euclidean_distance_neighbors(data,n_neighbors=self.n_neighbors)
-
-        affinities_original = similarities.joint_probabilities(distances_original, self.perplexity, self.perplexity_tolerance)
-
-        #embed_history.shape=(max_iters, X.shape[0], n_dimensions)
-        Y = np.zeros(shape=(t, data.shape[0], self.n_dimensions))
-        self.cost_history = np.zeros(shape=t)
-
-        if self.init_embed is None:
-            Y[0] = self.initial_embed(data=data)
-        else:
-            Y[0] = self.init_embed
-
-        for i in range(0,t):
-            distances_embed = similarities.euclidean_distance_neighbors(Y[i], n_neighbors=self.n_neighbors)
-            affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-            if i<t-1 and i>0:
-                #   con early exaggeration
-                grad = gradient(affinities_original,self.early_exaggeration*affinities_current,Y[i],n_neighbors=self.n_neighbors,embed_distances=distances_embed)
-                #   sin early exaggeration
-                # grad = gradient(affinities_original,affinities_current,Y[i],n_neighbors=self.n_neighbors,embed_distances=distances_embed)
-
-                Y[i+1] = Y[i] - self.learning_rate*grad + self.__momentum(i+1)*(Y[i]-Y[i-1])
-
-            cost = kl_divergence(affinities_original, affinities_current)
-            self.cost_history[i] = cost
-            if cost<self.best_cost or i == 0:
-                self.best_cost = cost
-                self.best_iter = i
-
-        distances_embed = similarities.euclidean_distance_neighbors(Y[t-1], n_neighbors=self.n_neighbors)
-        affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-        
-        cost = kl_divergence(affinities_original, affinities_current)
-        
-        self.cost_history[t-1] = cost
-        
-        maxim = np.max(self.cost_history)
-        self.cost_history[0] = maxim
-
-        self.best_cost = np.min(self.cost_history)
-        self.best_iter = np.where(self.cost_history==self.best_cost)[0][0]
-
-        self.Y = Y
-
-    def gradient_descent_2(self, t, data):
         distances_original = similarities.euclidean_distance_neighbors(data,n_neighbors=self.n_neighbors)
         affinities_original = similarities.joint_probabilities(distances_original, self.perplexity, self.perplexity_tolerance)
 
@@ -467,41 +410,54 @@ class TSne():
             y = self.initial_embed(data=data)
         else:
             y = self.init_embed
-        
-        dist_embed = similarities.euclidean_distance_neighbors(y, n_neighbors=self.n_neighbors)
-        affinities_embed = similarities.joint_probabilities(dist_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-        cost = kl_divergence(affinities_original, affinities_embed)
-        self.best_cost = cost
-        self.best_iter = 1
 
         self.Y.append(y); self.Y.append(y)
-        self.affinities_history.append(affinities_embed); self.affinities_history.append(affinities_embed)
+
+        dist_embed = similarities.euclidean_distance_neighbors(y, n_neighbors=self.n_neighbors)
         self.embed_dist_history.append(dist_embed); self.embed_dist_history.append(dist_embed)
+
+        affinities_embed = similarities.joint_probabilities(dist_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
+        self.affinities_history.append(affinities_embed); self.affinities_history.append(affinities_embed)
+
+        cost = kl_divergence(affinities_original, affinities_embed)
         self.cost_history.append(cost); self.cost_history.append(cost)
+        self.best_cost = cost
+        self.best_iter_cost = 1
         
+        trust = trustworthiness(data, y, self.n_neighbors)
+        self.trust_history.append(trust); self.trust_history.append(trust)
+        self.best_trust = trust
+        self.best_iter_trust = 1
 
         for i in range(2,t):
-            grad = gradient(affinities_original,
-                            self.early_exaggeration*self.affinities_history[-1],
-                            self.Y[-1],
-                            n_neighbors=self.n_neighbors,
-                            embed_distances=self.embed_dist_history[-1])
-            y = self.Y[-1] - self.learning_rate*grad + self.__momentum(i)*(self.Y[-1]-self.Y[-2])
+            #grad = gradient_2(affinities_original,self.early_exaggeration*self.affinities_history[-1],self.Y[-1],n_neighbors=self.n_neighbors,embed_distances=self.embed_dist_history[-1])
+            #y = self.Y[-1] - self.learning_rate*grad + self.__momentum(i)*(self.Y[-1]-self.Y[-2])
+            
+            grad2 = gradient_2(affinities_original,self.early_exaggeration*self.affinities_history[-1],self.Y[-1])
+            y = self.Y[-1] - self.learning_rate*grad2 + self.__momentum(i)*(self.Y[-1]-self.Y[-2])
+            
             self.Y.append(y)
 
             distances_embed = similarities.euclidean_distance_neighbors(self.Y[-1], n_neighbors=self.n_neighbors)
-            affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-            cost = kl_divergence(affinities_original, affinities_current)
-            
             self.embed_dist_history.append(distances_embed)
+            
+            affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
             self.affinities_history.append(affinities_current)
+
+            cost = kl_divergence(affinities_original, affinities_current)
             self.cost_history.append(cost)
+            
+            trust = trustworthiness(data, y, self.n_neighbors)
+            self.trust_history.append(trust)
             
             if cost<self.best_cost:
                 self.best_cost = cost
-                self.best_iter = i
+                self.best_iter_cost = i
+            if trust>self.best_trust:
+                self.best_trust = trust
+                self.best_iter_trust = i
 
-    def display_embed(self, *, display_best_iter=False, t:int=-1):
+    def display_embed(self, *, display_best_iter_cost=False, display_best_iter_trust=False, t:int=-1):
         """Displays the resulting embedding.
 
         Parameters
@@ -512,12 +468,15 @@ class TSne():
         t: int, Optional.
             The embedding iteration to display.
         """
-        if display_best_iter:
-            t = self.best_iter
+        if display_best_iter_cost:
+            t = self.best_iter_cost
+        elif display_best_iter_trust:
+            t = self.best_iter_trust
         elif t not in range(-1,self.max_iter):
             raise ValueError("Cannot show embedding for values of t that are not within the range [-1, {})=".format(self.max_iter))
         
         embed = np.array(self.Y[t])
+        embed_T = embed.T
 
         if self.element_classes is not None:
             labels = self.element_classes.astype(str)
@@ -527,7 +486,6 @@ class TSne():
         else:
             if self.n_dimensions==3:
                 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-                embed_T = embed.T()
                 x = embed_T[0]
                 y = embed_T[1]
                 z = embed_T[2]
@@ -541,36 +499,55 @@ class TSne():
                 else:
                     for i in range(0,x.shape[0]):
                         ax.plot(x[i],y[i],z[i], marker='o',linestyle='', markersize=8)
-
-
+            
             else:
                 if self.n_dimensions==1:
                     x = embed
                     y = np.ones_like(x)
                 else:
-                    embed_T = embed.T
                     x = embed_T[0]
                     y = embed_T[1]
 
                 if self.element_classes is not None:
                     for i in range(0,x.shape[0]):
                         plt.plot(x[i],y[i],marker='o',linestyle='', markersize=5, label=labels[i])
-                    
-
                     handles, labels = plt.gca().get_legend_handles_labels()
                     by_label = dict(zip(labels, handles))
                     plt.legend(by_label.values(), by_label.keys(), draggable=True)
-                    
                 else:
                     for i in range(0,x.shape[0]):
                         plt.plot(x[i],y[i],marker='o',linestyle='', markersize=8)
-            if display_best_iter:
-                title = "Best embedding, achieved at t={} out of {} iterations"
+            
+
+
+            if display_best_iter_cost:
+                title = "Best embedding for kl divergence, achieved at t={} out of {} iterations".format(t, self.max_iter)
+            elif display_best_iter_trust:
+                title = "Best embedding for trustworthiness, achieved at t={} out of {} iterations".format(t, self.max_iter)
+            elif t==-1:
+                title = "Embedding at the last iteration, at t={}".format(self.max_iter)
             else:
-                title = "Embedding at t={} out of {} iterations"
-            
+                title = "Embedding at t={} out of {} iterations".format(t, self.max_iter)
 
-            plt.title(title.format(t, self.max_iter))
-            
-
+            plt.title(title)
             plt.show()
+
+
+#============================================================================================
+#============================================================================================
+#===============De la pagina, borrar despues=================================================
+#============================================================================================
+#============================================================================================
+
+
+
+def gradient_2(P, Q, y):
+    pq_diff = P - Q
+    y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
+
+    dists = pairwise_distances(y)
+    aux = 1 / (1 + dists)
+    return 4 * (np.expand_dims(pq_diff, 2) * y_diff * np.expand_dims(aux,2)).sum(1)
+
+def pairwise_distances(X): #devuelve la distancia euclidiana sin hacer la raiz cuadrada
+    return np.sum((X[None, :] - X[:, None])**2, 2)
