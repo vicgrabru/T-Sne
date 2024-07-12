@@ -170,7 +170,7 @@ class TSne():
     """
 
     def __init__(self, *, n_dimensions=2, perplexity=30, perplexity_tolerance=1e-10, n_neighbors = 10,
-                 metric='euclidean', init_method="random", init_embed=None, early_exaggeration=4,
+                 metric='euclidean', init_method="random", init_embed=None, early_exaggeration=None,
                  learning_rate=500, max_iter=1000, momentum_params=[250.0,0.5,0.8], seed=None, verbose=0):
         #validacion de parametros
         self._input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,
@@ -178,6 +178,7 @@ class TSne():
 
         if n_neighbors==None:
             n_neighbors = 3*perplexity + 1
+        
 
         #inicializacion de la clase
         self.n_dimensions = n_dimensions
@@ -189,7 +190,10 @@ class TSne():
         self.max_iter = max_iter
         self.init_embed = init_embed
         self.momentum_params = momentum_params
-        self.early_exaggeration = early_exaggeration
+        if early_exaggeration is None:
+            self.early_exaggeration = 1
+        else:
+            self.early_exaggeration = early_exaggeration
         self.n_neighbors = n_neighbors
         self.verbose = verbose
 
@@ -271,7 +275,7 @@ class TSne():
                 if init_method not in accepted_methods:
                     raise ValueError("Only init_method values accepted are random and precomputed")
         
-        # init_embed*: ndarray of shape (n_samples, n_features)
+        # init_embed: ndarray of shape (n_samples, n_features)
         if init_embed is not None:
             if isinstance(init_embed, np.ndarray):
                 if not isinstance(init_embed.ndtype, np.number):
@@ -420,8 +424,6 @@ class TSne():
             print('Time/Iteration:', time.strftime("%H:%M:%S", time.gmtime(t_iter)))
             print("=================================================================")
 
-
-
     def gradient_descent(self, t, data):
         distances_original = similarities.pairwise_euclidean_distance(data)
         affinities_original = similarities.joint_probabilities(distances_original, self.perplexity, self.perplexity_tolerance)
@@ -454,7 +456,7 @@ class TSne():
             grad = gradient_extra(affinities_original,self.early_exaggeration*self.affinities_history[-1],self.Y[-1])
             
             y = self.Y[-1] - self.learning_rate*grad + self.momentum(i)*(self.Y[-1]-self.Y[-2])
-            distances_embed = similarities.pairwise_euclidean_distance(y) #alcanza overflow salta a except, y no se ejecutan
+            distances_embed = similarities.pairwise_euclidean_distance(y)
             affinities_embed = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
             cost = kl_divergence(affinities_original, affinities_embed)
             trust = trustworthiness(data, y, self.n_neighbors)

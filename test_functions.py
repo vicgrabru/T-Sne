@@ -7,44 +7,36 @@ import matplotlib.pyplot as plt
 import mytsnelib.metodos_pagina as mtdpg
 
 #======================================================#
-include_n_samples = 300
-index_start = 0
-#======================================================#
-#======================================================#
-momentum_params = [1.0, 0.5, 0.8]
 n_dimensions = 2
-n_iterations = 1000
-neighbors = 10
+perplexity = 40
 perplexity_tolerance = 1e-10
-perplexity = 3
+n_neighbors = 10
+# metric = "euclidean"
+# init_method = "random"
+# init_embed = None
+early_exaggeration = 4
+learning_rate = 200
+max_iter = 1000
+momentum_params = [1.0, 0.5, 0.8]
 verbose=1
 seed = 3
 #======================================================#
 
 
-read_csv = ut.read_csv("data/digits.csv", has_labels=True)
-data_full = read_csv[0].astype(np.int32)
-labels_full = read_csv[1]
-data = data_full[index_start:index_start+include_n_samples,:]
-labels = labels_full[index_start:index_start+include_n_samples]
 
 
-#1: mio
-#2: sklearn
-#3: pagina
-#4: pagina en functions.py
-#5: pagina con los datos de prueba mios
-#6: pagina en functions.py con los datos de prueba mios
-#default: otra cosa
+def test_haversine():
+    
 
-probando = 1
-if probando==1:
-    print("Probando T-Sne mio")
+    assert True
+
+
+def probar_mio(data, labels):
     model = functions.TSne(n_dimensions=n_dimensions,
-                           perplexity_tolerance=perplexity_tolerance,
-                           max_iter=n_iterations,
-                           n_neighbors=neighbors,
                            perplexity=perplexity,
+                           perplexity_tolerance=perplexity_tolerance,
+                           n_neighbors=n_neighbors,
+                           max_iter=max_iter,
                            verbose=verbose,
                            seed=seed)
 
@@ -73,8 +65,7 @@ if probando==1:
     print("======================================================")
     print("======================================================")
 
-elif probando==2:
-    print("Probando T-Sne de sklearn")
+def probar_sklearn(data, labels):
     from sklearn.manifold import TSNE
     data_embedded = TSNE(n_components=n_dimensions,
                          learning_rate='auto',
@@ -84,7 +75,7 @@ elif probando==2:
     
     ut.display_embed(data_embedded, labels)
 
-elif probando==3:
+def probar_pagina():
     print("Probando T-Sne de la pagina")
     from sklearn.datasets import load_digits
     X, y = load_digits(return_X_y=True)
@@ -92,28 +83,13 @@ elif probando==3:
     plt.scatter(res[:, 0], res[:, 1], s=20, c=y)
     plt.show()
 
-elif probando==4:
-    print("Probando T-Sne de la pagina en functions.py")
-    from sklearn.datasets import load_digits
-    X, y = load_digits(return_X_y=True)
-    res = functions.tsne_2(X, T=1000, l=200, perp=40)
-    plt.scatter(res[:, 0], res[:, 1], s=20, c=y)
-    plt.show()
-
-elif probando==5:
+def probar_pagina_mis_datos(data):
     print("Probando T-Sne de la pagina con los datos de prueba mios")
     res = mtdpg.tsne(data, T=1000, l=200, perp=40)
     plt.scatter(res[:, 0], res[:, 1], s=20)
     plt.show()
 
-elif probando==6:
-    print("Probando T-Sne de la pagina en functions.py con los datos de prueba mios")
-    res = functions.tsne_2(data, T=1000, l=200, perp=40)
-    plt.scatter(res[:, 0], res[:, 1], s=20)
-    plt.show()
-
-
-else:
+def probar_otra_cosa():
     print("Probando otra cosa")
     a=np.array([[1,2],[1,2],[1,2],[1,2]])
 
@@ -140,7 +116,29 @@ else:
     print("----------------------")
 
 
-def test_haversine():
-    
 
-    assert True
+
+
+#======================================================#
+include_n_samples = 300
+index_start = 0
+
+read_csv = ut.read_csv("data/digits.csv", has_labels=True)
+data_full = read_csv[0].astype(np.int32)
+labels_full = read_csv[1]
+data = data_full[index_start:index_start+include_n_samples,:]
+labels = labels_full[index_start:index_start+include_n_samples]
+#======================================================#
+
+
+
+
+
+
+
+
+probar_mio(data, labels)
+probar_sklearn(data, labels)
+
+
+
