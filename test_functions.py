@@ -51,28 +51,27 @@ if probando==1:
     model.fit(data,classes=labels)
 
     model.display_embed(t=-1)
-    # model.display_embed(display_best_iter_cost=True)
-    # model.display_embed(display_best_iter_trust=True)
+    model.display_embed(display_best_iter_cost=True)
+    model.display_embed(display_best_iter_trust=True)
 
     
     
-    # trustworthinessCost = functions.trustworthiness(data, model.Y[model.best_iter_cost], model.n_neighbors)
-    # print("======================================================")
-    # print("===========Cost=======================================")
-    # print("best_iter_cost:{}".format(model.best_iter_cost))
-    # print("best_cost:{}".format(model.best_cost))
-    # print("trustworthiness of the best cost embedding: {}".format(trustworthinessCost))
-    # print("======================================================")
+    trustworthinessCost = functions.trustworthiness(data, model.Y[model.best_iter_cost], model.n_neighbors)
+    print("======================================================")
+    print("===========Cost=======================================")
+    print("best_iter_cost:{}".format(model.best_iter_cost))
+    print("best_cost:{}".format(model.best_cost))
+    print("trustworthiness of the best cost embedding: {}".format(trustworthinessCost))
+    print("======================================================")
 
-
-    # print("======================================================")
-    # print("===========Trust======================================")
-    # trustworthinessTrust = functions.trustworthiness(data, model.Y[model.best_iter_trust], model.n_neighbors)
-    # print("best_iter_trust:{}".format(model.best_iter_trust))
-    # print("best_trust:{}".format(model.best_trust))
-    # print("trustworthiness of the best trust embedding: {}".format(trustworthinessTrust))
-    # print("======================================================")
-    # print("======================================================")
+    trustworthinessTrust = functions.trustworthiness(data, model.Y[model.best_iter_trust], model.n_neighbors)
+    print("======================================================")
+    print("===========Trust======================================")
+    print("best_iter_trust:{}".format(model.best_iter_trust))
+    print("best_trust:{}".format(model.best_trust))
+    print("trustworthiness of the best trust embedding: {}".format(trustworthinessTrust))
+    print("======================================================")
+    print("======================================================")
 
 elif probando==2:
     print("Probando T-Sne de sklearn")
@@ -116,7 +115,7 @@ elif probando==6:
 
 else:
     print("Probando otra cosa")
-    a=np.array([[1,2,3,4],[1,2,3,4],[1,2,3,4],[1,2,3,4]])
+    a=np.array([[1,2],[1,2],[1,2],[1,2]])
 
     a0 = np.expand_dims(a,0)
     a1 = np.expand_dims(a,1)
@@ -127,8 +126,8 @@ else:
     # expand_dims -> n_dims +=1
 
     print("----------------------")
-    print("a.ndim: {}".format(a.ndim))
     print("a.shape: {}".format(a.shape))
+    print("a:\n {}".format(a))
     print("----------------------")
     print("a0.shape: {}".format(a0.shape))
     print("a0:\n {}".format(a0))

@@ -5,85 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mytsnelib import similarities
 import time
-import warnings
 
-
-
-def gradient(high_dimension_probs, low_dimension_probs, embed,*, n_neighbors=None, embed_distances=None):
-    """Computes the gradient of the cost function.
-
-    Parameters
-    ----------
-        high_dimension_probs: ndarray of shape (n_samples, n_samples)
-            The joint probabilities for the samples in the original dimension.
-
-
-        low_dimension_probs: ndarray of shape (n_samples, n_samples)
-            The joint probabilities for the samples embedded in the lower dimension.
-        
-        embed: ndarray of shape (n_samples, n_dimensions)
-            The samples embedded in the lower dimension.
-
-    Returns
-    -------
-        gradient : ndarray of shape (n_samples, n_dimensions)
-            The gradient of the cost function.
-            It can be interpreted as a set of arrays that shows in what direction each point
-            must be "pulled" towards for a better embedding.
-    """
-    if n_neighbors is None:
-        n_neighbors = embed.shape[0]-1
-    
-    prob_diff = high_dimension_probs - low_dimension_probs
-    
-    if embed_distances is None:
-        embed_distances = similarities.euclidean_distance_neighbors(embed,n_neighbors=n_neighbors)
-    
-    embed_distances = np.power(embed_distances,2)
-
-    #1 + distancia euclidiana al cuadrado
-    embed_distances += np.ones_like(embed_distances)
-    np.fill_diagonal(embed_distances, np.inf)
-
-
-    n = high_dimension_probs.shape[0]
-    gradient = np.zeros_like(embed)
-    
-    # print(embed_distances)
-    
-    # for i in range(0,n):
-    #     for j in range(0,n):
-    #         aux = 4.0*prob_diff[i][j]/embed_distances[i][j]
-    #         embed_diff = embed[i] - embed[j]
-    #         gradient[i] += np.multiply(embed_diff, aux)
-
-    for i in range(0,n):
-        #p_ij - q_ij
-        prob_diff = high_dimension_probs[i]-low_dimension_probs[i]
-        #y_i - y_j
-        embed_diff = embed[i] - embed
-        
-        # embed_i_rep = np.repeat(embed[i], embed.shape[0], axis=0)
-        # embed_diff = embed_i_rep - embed
-
-        # 1 + (||y_i - y_j||)^2
-        dist = embed_distances[i]
-        n_repeats = embed_diff.shape[1]
-        #expand prob_diff and dist to match embed_diff's shape
-        if embed_diff.shape != prob_diff.shape:
-            prob_diff_temp = prob_diff
-            prob_diff = np.repeat(np.expand_dims(prob_diff_temp, axis=1), n_repeats, axis=1)
-        if embed_diff.shape != dist.shape:
-            dist_temp = dist
-            dist = np.repeat(np.expand_dims(dist_temp, axis=1), n_repeats, axis=1)
-        # print(dist)
-        mult = np.multiply(prob_diff, embed_diff)
-        div = np.divide(mult, dist)
-        gradient[i] = 4*np.sum(div, axis=0)
-    
-    return gradient
-
-def gradient_no_neighbors(high_dimension_probs, low_dimension_probs, embed):
+def gradient(high_dimension_probs, low_dimension_probs, embed):
     
     embed_distances = similarities.pairwise_euclidean_distance(embed)
 
@@ -118,7 +41,7 @@ def gradient_no_neighbors(high_dimension_probs, low_dimension_probs, embed):
     
     return result
 
-def gradient_no_neighbors_2(high_dimension_probs, low_dimension_probs, embed):
+def gradient_2(high_dimension_probs, low_dimension_probs, embed):
     
     #embed_distances = pairwise_distances(embed)
     embed_distances = np.power(similarities.euclidean_distance(embed),2)
@@ -152,7 +75,7 @@ def gradient_no_neighbors_2(high_dimension_probs, low_dimension_probs, embed):
     
     return result
 
-def gradient_no_neighbors_3(high_dimension_probs, low_dimension_probs, embed):
+def gradient_3(high_dimension_probs, low_dimension_probs, embed):
     
     #embed_distances = pairwise_distances(embed)
     embed_distances = similarities.pairwise_euclidean_distance(embed)
@@ -186,47 +109,16 @@ def gradient_no_neighbors_3(high_dimension_probs, low_dimension_probs, embed):
     
     return result
 
-def gradient_no_neighbors_4(high_dimension_probs, low_dimension_probs, embed, embed_distances):
-    
-    result = np.zeros_like(embed)
-    
-    
-    #aux1 = p - q ---> aux1[i][j] = p_ij - q_ij
-    aux1 = high_dimension_probs - low_dimension_probs
-    
-    
+def gradient_extra(P, Q, y):
+    pq_diff = P - Q
+    y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
 
-    # x = np.array([1, 2])
-    # x: [1,
-    #     2]
-    # x.shape: (2,)
-    #
-    # y1 = np.expand_dims(x, axis=0)
-    # y1: [[1, 2]]
-    # y1.shape: (1, 2)
-    #
-    # y2 = np.expand_dims(x, axis=1)
-    # y2: [[1],
-    #      [2]])
-    # y2.shape: (2, 1)
-
-    # aux2 = np.expand_dims(y,1) - np.expand_dims(y,0)
-    np.exp
-    for i in range(0, embed.shape[0]):
-        #aux2= y_i - y_j
-        aux2 = embed[i] - embed
-        
-        #aux3= 1/(1 + dist(y_i, y_j))
-        aux3 = 1/(1 + embed_distances[i])
-
-        #prod = aux1*aux2*aux3
-        prod = np.multiply(aux1[i], aux2, aux3)
-        sum = np.sum(prod, 1)
-        result[i] = 4*sum
-
-    return result
+    dists = similarities.pairwise_euclidean_distance(y)
+    aux = 1 / (1 + dists)
+    return 4 * (np.expand_dims(pq_diff, 2) * y_diff * np.expand_dims(aux,2)).sum(1)
 
 
+#recibe "joint probabilities"
 def kl_divergence(high_dimension_p, low_dimension_q):
     """Computes the Kullback-Leibler divergence
     Parameters
@@ -242,68 +134,35 @@ def kl_divergence(high_dimension_p, low_dimension_q):
         divergence : double.
             The divergence.
     """
-    
-    # div = np.divide(high_dimension_p,low_dimension_q)
-    # log = np.log(div)
-    # result = np.multiply(high_dimension_p, log)
-    # return np.sum(result)
-    result = 0.0
-    
-    for i in range(0, high_dimension_p.shape[0]):
-        for j in range(0, high_dimension_p.shape[1]):
-            result += high_dimension_p[i][j]*np.log(high_dimension_p[i][j]/low_dimension_q[i][j])
-    return result
+    aux1 = np.divide(high_dimension_p, low_dimension_q)
+    aux2 = np.log(aux1)
+    result = np.multiply(high_dimension_p, aux2)
 
+    return np.sum(result)
+
+# devuelve valores en [0,1]. cuanto mas pequeño sea el valor, peor se conserva la estructura
 def trustworthiness(data, embed, n_neighbors):
     dist_original = np.sqrt(similarities.pairwise_euclidean_distance(data))
     dist_embed = np.sqrt(similarities.pairwise_euclidean_distance(embed))
 
-    v_original = similarities.get_neighbors_ranked_by_distance(dist_original)
-    v_embed_index = similarities.find_nearest_neighbors_index(dist_embed, n_neighbors).astype(np.int32)
-    
-    n = data.shape[0]
-    k = n_neighbors
+    n_samples = data.shape[0]
 
-    penalizacion = v_original - k
+    aux = 2/(n_samples*n_neighbors*(2*n_samples - 3*n_neighbors - 1))
 
+    vecinos_original_indices = similarities.get_nearest_neighbors_indexes_by_distance(dist_original)
+    vecinos_embed_indices = similarities.get_nearest_neighbors_indexes_by_distance(dist_embed, n_neighbors)
 
-    sumatorio_doble = 0.0
+    penalizacion = vecinos_original_indices - n_neighbors
 
-    for i in range(0, v_original.shape[0]):
-        for j in v_embed_index[i]:
-            sumatorio_doble += max(0,penalizacion[i][j])
-    
+    sumatorio = 0
 
-    div = n*k*(2*n-3*k-1)
-    result = 1-(2*sumatorio_doble/div)
+    for i in range(0, n_samples):
+        for j in vecinos_embed_indices[i][1:]:
+            sumatorio += max(0,penalizacion[i][j])
+
+    result = 1 - aux*sumatorio
     
     return result
-
-def trustworthiness_2(data, embed, n_neighbors):
-    dist_original = np.sqrt(similarities.pairwise_euclidean_distance(data))
-    dist_embed = np.sqrt(similarities.pairwise_euclidean_distance(embed))
-
-    v_original = similarities.get_neighbors_ranked_by_distance(dist_original)
-    v_embed_index = similarities.find_nearest_neighbors_index(dist_embed, n_neighbors).astype(np.int32)
-    
-    n = data.shape[0]
-    k = n_neighbors
-
-    penalizacion = v_original - k
-
-    sumatorio_doble = 0.0
-
-    for i in range(0, v_original.shape[0]):
-        for j in v_embed_index[i]:
-            sumatorio_doble += max(0,penalizacion[i][j])
-    
-
-    div = n*k*(2*n-3*k-1)
-    result = 1-(2*sumatorio_doble/div)
-    
-    return result
-
-
 
 class TSne():
     """Class for the performance of the T-Sne method.
@@ -545,10 +404,7 @@ class TSne():
         
         self.learning_rate = max(self.learning_rate, np.floor([X.shape[0]/12])[0])
 
-
-        #self.gradient_descent(self.max_iter, X)
-        #self.gradient_descent_no_neighbors_2(self.max_iter, X)
-        self.gradient_descent_no_neighbors_only_gradient(self.max_iter, X)
+        self.gradient_descent(self.max_iter, X)
 
         if classes is not None:
             self.element_classes = classes
@@ -564,190 +420,9 @@ class TSne():
             print('Time/Iteration:', time.strftime("%H:%M:%S", time.gmtime(t_iter)))
             print("=================================================================")
 
+
+
     def gradient_descent(self, t, data):
-        """Performs the gradient descent in an iterative manner
-
-        Parameters
-        ----------
-        t: int
-            The amount of iterations to perform.
-
-        data : ndarray of shape (n_samples, n_features)
-            An array of the data where each row is a sample and each column is a feature.
-        
-        Returns
-        -------
-        embed : ndarray of shape (n_samples, n_dimensions) or (t, n_samples, n_dimensions)
-            Contains the resulting embedding after t iterations.
-            If return_evolution is True, returns the entire history of embeddings.
-        
-        Note: Updates the value of the embedding_history parameter.
-        """
-        distances_original = similarities.euclidean_distance_neighbors(data,n_neighbors=self.n_neighbors)
-        affinities_original = similarities.joint_probabilities(distances_original, self.perplexity, self.perplexity_tolerance)
-
-
-        if self.init_embed is None:
-            y = self.initial_embed(data=data)
-        else:
-            y = self.init_embed
-
-        self.Y.append(y); self.Y.append(y)
-
-        dist_embed = similarities.euclidean_distance_neighbors(y, n_neighbors=self.n_neighbors)
-        self.embed_dist_history.append(dist_embed); self.embed_dist_history.append(dist_embed)
-
-        affinities_embed = similarities.joint_probabilities(dist_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-        self.affinities_history.append(affinities_embed); self.affinities_history.append(affinities_embed)
-
-        cost = kl_divergence(affinities_original, affinities_embed)
-        self.cost_history.append(cost); self.cost_history.append(cost)
-        self.best_cost = cost
-        self.best_iter_cost = 1
-        
-        trust = trustworthiness(data, y, self.n_neighbors)
-        self.trust_history.append(trust); self.trust_history.append(trust)
-        self.best_trust = trust
-        self.best_iter_trust = 1
-
-        for i in range(2,t):
-            #grad = gradient_2(affinities_original,self.early_exaggeration*self.affinities_history[-1],self.Y[-1],n_neighbors=self.n_neighbors,embed_distances=self.embed_dist_history[-1])
-            #y = self.Y[-1] - self.learning_rate*grad + self.momentum(i)*(self.Y[-1]-self.Y[-2])
-            
-            #grad2 = gradient_2(affinities_original,self.early_exaggeration*self.affinities_history[-1],self.Y[-1])
-            #y = self.Y[-1] - self.learning_rate*grad2 + self.momentum(i)*(self.Y[-1]-self.Y[-2])
-
-            grad_no_neighbors = gradient_no_neighbors_2(affinities_original,self.early_exaggeration*self.affinities_history[-1],self.Y[-1])
-            y = self.Y[-1] - self.learning_rate*grad_no_neighbors + self.momentum(i)*(self.Y[-1]-self.Y[-2])
-            
-            self.Y.append(y)
-
-            distances_embed = similarities.euclidean_distance_neighbors(self.Y[-1], n_neighbors=self.n_neighbors)
-            self.embed_dist_history.append(distances_embed)
-            
-            affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-            self.affinities_history.append(affinities_current)
-
-            cost = kl_divergence(affinities_original, affinities_current)
-            self.cost_history.append(cost)
-            
-            trust = trustworthiness(data, y, self.n_neighbors)
-            self.trust_history.append(trust)
-            
-            if cost<self.best_cost:
-                self.best_cost = cost
-                self.best_iter_cost = i
-            if trust>self.best_trust:
-                self.best_trust = trust
-                self.best_iter_trust = i
-
-    def gradient_descent_no_neighbors(self, t, data):
-        distances_original = similarities.euclidean_distance(data)
-        affinities_original = similarities.joint_probabilities(distances_original, self.perplexity, self.perplexity_tolerance)
-
-        if self.init_embed is None:
-            y = self.initial_embed(data=data)
-        else:
-            y = self.init_embed
-
-        self.Y.append(y); self.Y.append(y)
-
-        dist_embed = similarities.euclidean_distance(y)
-        self.embed_dist_history.append(dist_embed); self.embed_dist_history.append(dist_embed)
-
-        affinities_embed = similarities.joint_probabilities(dist_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-        self.affinities_history.append(affinities_embed); self.affinities_history.append(affinities_embed)
-
-        cost = kl_divergence(affinities_original, affinities_embed)
-        self.cost_history.append(cost); self.cost_history.append(cost)
-        self.best_cost = cost
-        self.best_iter_cost = 1
-        
-        trust = trustworthiness(data, y, self.n_neighbors)
-        self.trust_history.append(trust); self.trust_history.append(trust)
-        self.best_trust = trust
-        self.best_iter_trust = 1
-
-        for i in range(2,t):
-
-            grad = gradient_no_neighbors_2(affinities_original,self.early_exaggeration*self.affinities_history[-1],self.Y[-1])
-            y = self.Y[-1] - self.learning_rate*grad + self.momentum(i)*(self.Y[-1]-self.Y[-2])
-            
-            self.Y.append(y)
-
-            distances_embed = similarities.euclidean_distance(self.Y[-1])
-            self.embed_dist_history.append(distances_embed)
-            
-            affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-            self.affinities_history.append(affinities_current)
-
-            cost = kl_divergence(affinities_original, affinities_current)
-            self.cost_history.append(cost)
-            
-            trust = trustworthiness(data, y, self.n_neighbors)
-            self.trust_history.append(trust)
-            
-            if cost<self.best_cost:
-                self.best_cost = cost
-                self.best_iter_cost = i
-            if trust>self.best_trust:
-                self.best_trust = trust
-                self.best_iter_trust = i
-
-    def gradient_descent_no_neighbors_2(self, t, data):
-        distances_original = similarities.pairwise_euclidean_distance(data)
-        affinities_original = similarities.joint_probabilities_2(distances_original, self.perplexity, self.perplexity_tolerance)
-
-        if self.init_embed is None:
-            y = self.initial_embed(data=data)
-        else:
-            y = self.init_embed
-
-        self.Y.append(y); self.Y.append(y)
-
-        dist_embed = similarities.pairwise_euclidean_distance(y)
-        self.embed_dist_history.append(dist_embed); self.embed_dist_history.append(dist_embed)
-
-        affinities_embed = similarities.joint_probabilities_2(dist_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-        self.affinities_history.append(affinities_embed); self.affinities_history.append(affinities_embed)
-
-        cost = kl_divergence(affinities_original, affinities_embed)
-        self.cost_history.append(cost); self.cost_history.append(cost)
-        self.best_cost = cost
-        self.best_iter_cost = 1
-        
-        trust = trustworthiness_2(data, y, self.n_neighbors)
-        self.trust_history.append(trust); self.trust_history.append(trust)
-        self.best_trust = trust
-        self.best_iter_trust = 1
-
-        for i in range(2,t):
-
-            grad = gradient_no_neighbors_2(affinities_original,self.early_exaggeration*self.affinities_history[-1],self.Y[-1])
-            y = self.Y[-1] - self.learning_rate*grad + self.momentum(i)*(self.Y[-1]-self.Y[-2])
-            
-            self.Y.append(y)
-
-            distances_embed = similarities.pairwise_euclidean_distance(self.Y[-1])
-            self.embed_dist_history.append(distances_embed)
-            
-            affinities_current = similarities.joint_probabilities_2(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-            self.affinities_history.append(affinities_current)
-
-            cost = kl_divergence(affinities_original, affinities_current)
-            self.cost_history.append(cost)
-            
-            trust = trustworthiness(data, y, self.n_neighbors)
-            self.trust_history.append(trust)
-            
-            if cost<self.best_cost:
-                self.best_cost = cost
-                self.best_iter_cost = i
-            if trust>self.best_trust:
-                self.best_trust = trust
-                self.best_iter_trust = i
-
-    def gradient_descent_no_neighbors_only_gradient(self, t, data):
         distances_original = similarities.pairwise_euclidean_distance(data)
         affinities_original = similarities.joint_probabilities(distances_original, self.perplexity, self.perplexity_tolerance)
 
@@ -759,43 +434,44 @@ class TSne():
         
         dist_embed = similarities.pairwise_euclidean_distance(y)
         affinities_embed = similarities.joint_probabilities(dist_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
+        cost = kl_divergence(affinities_original, affinities_embed)
+        trust = trustworthiness(data, y, self.n_neighbors)
         
         
         self.Y.append(y); self.Y.append(y)
         self.embed_dist_history.append(dist_embed); self.embed_dist_history.append(dist_embed)
         self.affinities_history.append(affinities_embed); self.affinities_history.append(affinities_embed)
-        with warnings.catch_warnings(record=True) as war:
-            warnings.simplefilter("always")
-            for i in range(2,t):
-                #grad = gradient_no_neighbors_3(affinities_original,self.early_exaggeration*self.affinities_history[-1],self.Y[-1])
-                grad = gradient_no_neighbors_4(affinities_original,self.early_exaggeration*self.affinities_history[-1],self.Y[-1],self.embed_dist_history[-1])
-                
-                y = self.Y[-1] - self.learning_rate*grad + self.momentum(i)*(self.Y[-1]-self.Y[-2])
-                distances_embed = similarities.pairwise_euclidean_distance(y) #alcanza overflow salta a except, y no se ejecutan
-                affinities_current = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-                
-                self.Y.append(y)
-                self.embed_dist_history.append(distances_embed)
-                self.affinities_history.append(affinities_current)
+        self.cost_history.append(cost); self.cost_history.append(cost)
+        self.trust_history.append(trust); self.trust_history.append(trust)
 
-                if len(war)>0:
-                    print("===============================")
-                    print("len(war): {}".format(len(war)))
-                    print("-------------------------------")
-                    for j in range(0, len(war)):
-                        if j<10:
-                            print("war[{}].filename: {}".format(j, war[j].filename))
-                            print("war[{}].line_number: {}".format(j, war[j].lineno))
-                            print("war[{}].message: {}".format(j, war[j].message))
-                            print("-------------------------------")
-                    print("-------------------------------")
-                    print("i: {}".format(i))
-                    print("len(self.Y): {}".format(len(self.Y)))
-                    print("max(y): {}".format(np.max(y)))
-                    print("min(y): {}".format(np.min(y)))
-                    print("===============================")
-                    exit(0)
+        self.best_cost = cost
+        self.best_trust = trust
+        self.best_iter_cost = 1
+        self.best_iter_trust = 1
 
+
+        for i in range(2,t):
+            grad = gradient_extra(affinities_original,self.early_exaggeration*self.affinities_history[-1],self.Y[-1])
+            
+            y = self.Y[-1] - self.learning_rate*grad + self.momentum(i)*(self.Y[-1]-self.Y[-2])
+            distances_embed = similarities.pairwise_euclidean_distance(y) #alcanza overflow salta a except, y no se ejecutan
+            affinities_embed = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
+            cost = kl_divergence(affinities_original, affinities_embed)
+            trust = trustworthiness(data, y, self.n_neighbors)
+
+            if cost<self.best_cost:
+                self.best_cost = cost
+                self.best_iter_cost = i
+            
+            if trust>self.best_trust:
+                self.best_trust = trust
+                self.best_iter_trust = i
+            
+            self.Y.append(y)
+            self.embed_dist_history.append(distances_embed)
+            self.affinities_history.append(affinities_embed)
+            self.cost_history.append(cost)
+            self.trust_history.append(trust)
 
     def display_embed(self, *, display_best_iter_cost=False, display_best_iter_trust=False, t:int=-1):
         """Displays the resulting embedding.
@@ -865,97 +541,10 @@ class TSne():
             elif display_best_iter_trust:
                 title = "Best embedding for trustworthiness, achieved at t={} out of {} iterations".format(t, self.max_iter)
             elif t==-1:
-                title = "Embedding at the last iteration, at t={}".format(self.max_iter)
+                title = "Embedding at the last iteration, at t={}".format(len(self.Y))
             else:
                 title = "Embedding at t={} out of {} iterations".format(t, self.max_iter)
 
             plt.title(title)
             plt.show()
 
-
-#============================================================================================
-#============================================================================================
-#===============De la pagina, borrar despues=================================================
-#============================================================================================
-#============================================================================================
-
-
-
-def pairwise_distances(X): #devuelve la distancia euclidiana sin hacer la raiz cuadrada
-    return np.sum((X[None, :] - X[:, None])**2, 2)
-
-def p_conditional(dists, sigmas):
-    e = np.exp(-dists / (2 * np.square(sigmas.reshape((-1,1)))))
-    np.fill_diagonal(e, 0.)
-    e += 1e-8
-    return e / e.sum(axis=1).reshape([-1,1])
-
-def perp(condi_matr):
-    ent = -np.sum(condi_matr * np.log2(condi_matr), 1)
-    return 2 ** ent
-
-def find_sigmas(dists, perplexity):
-    found_sigmas = np.zeros(dists.shape[0])
-    for i in range(dists.shape[0]):
-        func = lambda sig: perp(p_conditional(dists[i:i+1, :], np.array([sig])))
-        found_sigmas[i] = search(func, perplexity)
-    return found_sigmas
-
-
-def search(func, goal, tol=1e-10, max_iters=1000, lowb=1e-20, uppb=10000):
-    for _ in range(max_iters):
-        guess = (uppb + lowb) / 2.
-        val = func(guess)
-
-        if val > goal:
-            uppb = guess
-        else:
-            lowb = guess
-
-        if np.abs(val - goal) <= tol:
-            return guess
-
-    return guess
-
-
-def q_joint(y): #joint probabilities with t-student distribution with 1 degree of freedom
-    dists = pairwise_distances(y)
-    nom = 1 / (1 + dists)
-    np.fill_diagonal(nom, 0.)
-    return nom / np.sum(np.sum(nom))
-
-def gradient_2(P, Q, y):
-    (n, no_dims) = y.shape
-    pq_diff = P - Q
-    y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
-
-    dists = pairwise_distances(y)
-    aux = 1 / (1 + dists)
-    return 4 * (np.expand_dims(pq_diff, 2) * y_diff * np.expand_dims(aux,2)).sum(1)
-
-def m(t):
-    return 0.5 if t < 250 else 0.8
-
-def p_joint(X, perp):
-    N = X.shape[0]
-    dists = pairwise_distances(X)
-    sigmas = find_sigmas(dists, perp)
-    p_cond = p_conditional(dists, sigmas)
-    return (p_cond + p_cond.T) / (2. * N)
-
-def tsne_2(X, ydim=2, T=1000, l=500, perp=30):
-    N = X.shape[0]
-    P = p_joint(X, perp)
-
-    Y = []
-    y = np.random.normal(loc=0.0, scale=1e-4, size=(N,ydim))
-    Y.append(y); Y.append(y)
-
-    for t in range(T):
-        Q = q_joint(Y[-1])
-        grad = gradient_2(P, Q, Y[-1])
-        y = Y[-1] - l*grad + m(t)*(Y[-1] - Y[-2])
-        Y.append(y)
-        if t % 10 == 0:
-            Q = np.maximum(Q, 1e-12)
-    return y

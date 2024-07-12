@@ -379,4 +379,42 @@ def get_neighbors_ranked_by_distance(distances):
         result[i] = index_sorted
     return result
 
+def get_nearest_neighbors_indexes_by_distance(distances, k=None):
+    if distances.shape.__len__()!=2 or distances.shape[0] != distances.shape[1]:
+        raise ValueError("distances must be a square 2D array")
+    
+    
+    result = np.ones_like(distances).astype(int)
+    indices_sorted = np.argsort(distances)
+    #recorrer los individuos
+    for i in range(0, distances.shape[0]):
+        for j in range(0, distances.shape[1]):
+            ind_rank = indices_sorted[i][j]
+            result[i][ind_rank] = j
+        result[i] = indices_sorted[i]
+    
+    if k is not None: #si se especifica un limite de vecinos
+        return result[:,:k+1]
+    else:
+        return result
 
+
+
+#np.argsort(array): devuelve un array que actua como un "pointer" de las posiciones de los valores en el array dado
+#           ejemplo:
+#                   array_argsort = np.argsort(array_original)
+#                   array_ordenado = []
+#                   for i in range(0 array_argsort.shape[0]):
+#                       for j in range(0 array_argsort.shape[1]):
+#                           indice_valor = array_argsort[i][j]
+#                           array_ordenado[i][j] = array[i][indice_valor]
+
+
+#en el caso de la matriz de distancias:
+#   i: individuo
+#   j: vecino
+#
+#   distancias_argsort = np.argsort(distancias)
+#   distancias_argsort[i]: indices j de los vecinos ordenados
+#   j = distancias_argsort[i][k]
+#   distancias[i][j] --> distancia entre el individuo i y su k-esimo vecino mas cercano
