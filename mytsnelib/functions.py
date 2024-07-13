@@ -119,7 +119,7 @@ def gradient_extra(P, Q, y):
 
 
 #recibe "joint probabilities"
-def kl_divergence(high_dimension_p, low_dimension_q):
+def kl_divergence(high_dimension_p, low_dimension_q) -> float:
     """Computes the Kullback-Leibler divergence
     Parameters
     ----------
@@ -134,35 +134,36 @@ def kl_divergence(high_dimension_p, low_dimension_q):
         divergence : double.
             The divergence.
     """
-    aux1 = np.divide(high_dimension_p, low_dimension_q)
-    aux2 = np.log(aux1)
-    result = np.multiply(high_dimension_p, aux2)
+    div = np.divide(high_dimension_p, low_dimension_q)
+    aux = np.log(div)
+    result = np.multiply(high_dimension_p, aux)
 
     return np.sum(result)
 
 # devuelve valores en [0,1]. cuanto mas pequeño sea el valor, peor se conserva la estructura
-def trustworthiness(data, embed, n_neighbors):
+def trustworthiness(data, embed, k) -> float:
+    n = data.shape[0]
     dist_original = np.sqrt(similarities.pairwise_euclidean_distance(data))
     dist_embed = np.sqrt(similarities.pairwise_euclidean_distance(embed))
 
-    n_samples = data.shape[0]
+    np.fill_diagonal(dist_original, np.inf)
+    np.fill_diagonal(dist_embed, np.inf)
 
-    aux = 2/(n_samples*n_neighbors*(2*n_samples - 3*n_neighbors - 1))
+    rankings_vecinos_original = similarities.get_nearest_neighbors_indexes_by_distance(dist_original)
+    indices_vecinos_embed = similarities.get_nearest_neighbors_indexes_by_distance(dist_embed, k)
 
-    vecinos_original_indices = similarities.get_nearest_neighbors_indexes_by_distance(dist_original)
-    vecinos_embed_indices = similarities.get_nearest_neighbors_indexes_by_distance(dist_embed, n_neighbors)
-
-    penalizacion = vecinos_original_indices - n_neighbors
+    penalizacion = rankings_vecinos_original - k
 
     sumatorio = 0
 
-    for i in range(0, n_samples):
-        for j in vecinos_embed_indices[i][1:]:
+
+    for i in range(0, n):
+        for j in indices_vecinos_embed[i]:
             sumatorio += max(0,penalizacion[i][j])
 
-    result = 1 - aux*sumatorio
+    result = 2*sumatorio/(n*k*(2*n - 3*k - 1))
     
-    return result
+    return 1-result
 
 class TSne():
     """Class for the performance of the T-Sne method.
@@ -475,7 +476,7 @@ class TSne():
             self.cost_history.append(cost)
             self.trust_history.append(trust)
 
-    def display_embed(self, *, display_best_iter_cost=False, display_best_iter_trust=False, t:int=-1):
+    def display_embed(self, *, display_best_iter_cost=False, display_best_iter_trust=False, t:int=-1, title=None):
         """Displays the resulting embedding.
 
         Parameters
@@ -537,15 +538,15 @@ class TSne():
                         plt.plot(x[i],y[i],marker='o',linestyle='', markersize=8)
             
 
-
-            if display_best_iter_cost:
-                title = "Best embedding for kl divergence, achieved at t={} out of {} iterations".format(t, self.max_iter)
-            elif display_best_iter_trust:
-                title = "Best embedding for trustworthiness, achieved at t={} out of {} iterations".format(t, self.max_iter)
-            elif t==-1:
-                title = "Embedding at the last iteration, at t={}".format(len(self.Y))
-            else:
-                title = "Embedding at t={} out of {} iterations".format(t, self.max_iter)
+            if title is None:
+                if display_best_iter_cost:
+                    title = "Best embedding for kl divergence, achieved at t={} out of {} iterations".format(t, self.max_iter)
+                elif display_best_iter_trust:
+                    title = "Best embedding for trustworthiness, achieved at t={} out of {} iterations".format(t, self.max_iter)
+                elif t==-1:
+                    title = "Embedding at the last iteration, at t={}".format(len(self.Y))
+                else:
+                    title = "Embedding at t={} out of {} iterations".format(t, self.max_iter)
 
             plt.title(title)
             plt.show()

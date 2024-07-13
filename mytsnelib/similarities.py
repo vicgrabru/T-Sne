@@ -379,7 +379,7 @@ def get_neighbors_ranked_by_distance(distances):
         result[i] = index_sorted
     return result
 
-def get_nearest_neighbors_indexes_by_distance(distances, k=None):
+def get_nearest_neighbors_indexes_by_distance(distances, k=None) -> np.ndarray:
     if distances.shape.__len__()!=2 or distances.shape[0] != distances.shape[1]:
         raise ValueError("distances must be a square 2D array")
     
@@ -394,7 +394,7 @@ def get_nearest_neighbors_indexes_by_distance(distances, k=None):
         result[i] = indices_sorted[i]
     
     if k is not None: #si se especifica un limite de vecinos
-        return result[:,:k+1]
+        return result[:,:k]
     else:
         return result
 

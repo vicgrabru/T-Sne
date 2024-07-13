@@ -33,7 +33,7 @@ def read_csv(route, has_labels=False):
         else:
             entries = array_reader[:n_entries, :n_columns]
             return entries
-def display_embed(embedded_data, labels):
+def display_embed(embedded_data, labels, *, title=None):
     embed_T = embedded_data.T
     x = embed_T[0]
     y = embed_T[1]
@@ -44,5 +44,6 @@ def display_embed(embedded_data, labels):
     handles, labels = plt.gca().get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
     plt.legend(by_label.values(), by_label.keys(), draggable=True)
-
+    if title is not None:
+        plt.title(title)
     plt.show()

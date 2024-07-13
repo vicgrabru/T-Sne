@@ -3,22 +3,20 @@ import numpy as np
 
 from mytsnelib import functions
 import mytsnelib.utils as ut
-import matplotlib.pyplot as plt
-import mytsnelib.metodos_pagina as mtdpg
+import time
 
 #======================================================#
 n_dimensions = 2
 perplexity = 40
 perplexity_tolerance = 1e-10
 n_neighbors = 10
-# metric = "euclidean"
-# init_method = "random"
-# init_embed = None
+metric = "euclidean"
+init_method = "random"
+init_embed = None
 early_exaggeration = 4
 learning_rate = 200
 max_iter = 1000
 momentum_params = [1.0, 0.5, 0.8]
-verbose=1
 seed = 3
 #======================================================#
 
@@ -31,7 +29,7 @@ def test_haversine():
     assert True
 
 
-def probar_mio(data, labels):
+def probar_mio(data, labels, *, verbose=1, display=None, title=None):
     model = functions.TSne(n_dimensions=n_dimensions,
                            perplexity=perplexity,
                            perplexity_tolerance=perplexity_tolerance,
@@ -41,53 +39,23 @@ def probar_mio(data, labels):
                            seed=seed)
 
     model.fit(data,classes=labels)
+    if display is not None:
+        if display=="last":
+            model.display_embed(t=-1, title=title)
+        elif display=="cost":
+            model.display_embed(display_best_iter_cost=True, title=title)
+        elif display=="trust":
+            model.display_embed(display_best_iter_trust=True, title=title)
 
-    model.display_embed(t=-1)
-    model.display_embed(display_best_iter_cost=True)
-    model.display_embed(display_best_iter_trust=True)
-
-    
-    
-    trustworthinessCost = functions.trustworthiness(data, model.Y[model.best_iter_cost], model.n_neighbors)
-    print("======================================================")
-    print("===========Cost=======================================")
-    print("best_iter_cost:{}".format(model.best_iter_cost))
-    print("best_cost:{}".format(model.best_cost))
-    print("trustworthiness of the best cost embedding: {}".format(trustworthinessCost))
-    print("======================================================")
-
-    trustworthinessTrust = functions.trustworthiness(data, model.Y[model.best_iter_trust], model.n_neighbors)
-    print("======================================================")
-    print("===========Trust======================================")
-    print("best_iter_trust:{}".format(model.best_iter_trust))
-    print("best_trust:{}".format(model.best_trust))
-    print("trustworthiness of the best trust embedding: {}".format(trustworthinessTrust))
-    print("======================================================")
-    print("======================================================")
-
-def probar_sklearn(data, labels):
+def probar_sklearn(data, labels, *, verbose=1, display=False, title=None):
     from sklearn.manifold import TSNE
     data_embedded = TSNE(n_components=n_dimensions,
                          learning_rate='auto',
                          init='random',
                          perplexity=perplexity,
                          verbose=verbose).fit_transform(data)
-    
-    ut.display_embed(data_embedded, labels)
-
-def probar_pagina():
-    print("Probando T-Sne de la pagina")
-    from sklearn.datasets import load_digits
-    X, y = load_digits(return_X_y=True)
-    res = mtdpg.tsne(X, T=1000, l=200, perp=40)
-    plt.scatter(res[:, 0], res[:, 1], s=20, c=y)
-    plt.show()
-
-def probar_pagina_mis_datos(data):
-    print("Probando T-Sne de la pagina con los datos de prueba mios")
-    res = mtdpg.tsne(data, T=1000, l=200, perp=40)
-    plt.scatter(res[:, 0], res[:, 1], s=20)
-    plt.show()
+    if display:
+        ut.display_embed(data_embedded, labels, title=title)
 
 def probar_otra_cosa():
     print("Probando otra cosa")
@@ -117,9 +85,39 @@ def probar_otra_cosa():
 
 
 
+def comparacion_tiempos(data, labels, *, mio=True, sklearn=True):
+    print("=======================================")
+    if mio:
+        t0 = time.time()
+        probar_mio(data, labels, verbose=0)
+        t1 = time.time()
+        t_diff = t1-t0
+        print("mytsnelib:")
+        print("Tiempo de ejecucion: {}".format(time.strftime("%H:%M:%S", time.gmtime(t_diff))))
+        print("=======================================")
+    if sklearn:
+        t0 = time.time()
+        probar_sklearn(data, labels, verbose=0)
+        t1 = time.time()
+        t_diff = t1-t0
+        print("sklearn:")
+        print("Tiempo de ejecucion: {}".format(time.strftime("%H:%M:%S", time.gmtime(t_diff))))
+        print("=======================================")
+
+def comparacion_resultados(data, labels, *, mio=True, sklearn=True, caso_mio="last"):
+    if mio:
+        probar_mio(data, labels, verbose=0, display=caso_mio, title="Mytsnelib")
+    if sklearn:
+        probar_sklearn(data, labels, verbose=0, display=True, title="Sklearn")
+
+def prueba_individual(data, labels, *, caso, display=None):
+    if caso=="mio":
+        probar_mio(data, labels, verbose=1, display=display)
+    elif caso=="sklearn":
+        probar_sklearn(data, labels)
 
 
-#======================================================#
+#=================================================================#
 include_n_samples = 300
 index_start = 0
 
@@ -128,17 +126,18 @@ data_full = read_csv[0].astype(np.int32)
 labels_full = read_csv[1]
 data = data_full[index_start:index_start+include_n_samples,:]
 labels = labels_full[index_start:index_start+include_n_samples]
-#======================================================#
+#=================================================================#
 
 
 
 
+#comparacion_resultados(data, labels)
+
+prueba_individual(data, labels, caso="mio", display="cost")
 
 
 
 
-probar_mio(data, labels)
-probar_sklearn(data, labels)
-
+#probar_otra_cosa()
 
 
