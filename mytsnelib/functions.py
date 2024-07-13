@@ -49,7 +49,31 @@ def gradient_extra(P, Q, y):
     aux = 1 / (1 + dists)
     return 4 * (np.expand_dims(pq_diff, 2) * y_diff * np.expand_dims(aux,2)).sum(1)
 
-#cambio de prueba
+def gradient_forces(P, Q, y):
+    distancias = similarities.pairwise_euclidean_distance(y)
+    y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
+
+    # paso 1: obtener Z
+    dists = 1/(1+distancias)
+    np.fill_diagonal(dists, 0.)
+    z = dists.sum()
+
+    # paso 2: calcular fuerzas atractivas y repulsivas
+    # fuerzas atractivas
+    pq = np.multiply(P,Q)*z
+    np.fill_diagonal(pq, 0.)
+    attractive = np.multiply(np.expand_dims(pq, 2), y_diff)
+    #np.fill_diagonal(attractive, 0)
+
+    # fuerzas repulsivas
+    q2 = np.power(Q, 2)*z
+    np.fill_diagonal(q2, 0.)
+    repulsive = np.multiply(np.expand_dims(q2, 2), y_diff)
+    #np.fill_diagonal(repulsive, 0)
+
+    # paso 3: combinacion
+    return 4*(np.sum(attractive, 1) - np.sum(repulsive, 1))
+
 
 #recibe "joint probabilities"
 def kl_divergence(high_dimension_p, low_dimension_q) -> float:
@@ -389,6 +413,7 @@ class TSne():
 
         for i in range(2,t):
             grad = gradient_extra(p,self.early_exaggeration*self.q_history[-1],self.embed_history[-1])
+            #grad = gradient_forces(p,self.early_exaggeration*self.q_history[-1],self.embed_history[-1])
             
             y = self.embed_history[-1] - self.learning_rate*grad + self.__momentum(i)*(self.embed_history[-1]-self.embed_history[-2])
             distances_embed = similarities.pairwise_euclidean_distance(y)
