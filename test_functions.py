@@ -57,6 +57,25 @@ def probar_sklearn(data, labels, *, verbose=1, display=False, title=None):
     if display:
         ut.display_embed(data_embedded, labels, title=title)
 
+
+
+#=======================================================================================================#
+#===========================TODO: terminar de implementar el metodo de prueba===========================#
+#=======================================================================================================#
+def probar_bht(data, labels, *, verbose=1, display=False, title=None):
+    import bhtsne
+    embedding_bht = bhtsne.tsne(data, initial_dims=data.shape[1])
+    
+
+def probar_open(data, labels, *, verbose=1, display=False, title=None):
+    import openTSNE
+    embedding_open = openTSNE.TSNE(n_iter=max_iter, n_components=n_dimensions, perplexity=perplexity).fit(data)
+#=======================================================================================================#
+#=======================================================================================================#
+#=======================================================================================================#
+
+
+
 def probar_otra_cosa():
     print("Probando otra cosa")
     a=np.array([[1,2],[1,2],[1,2],[1,2]])
@@ -85,7 +104,7 @@ def probar_otra_cosa():
 
 
 
-def comparacion_tiempos(data, labels, *, mio=True, sklearn=True):
+def comparacion_tiempos(data, labels, *, mio=False, sklearn=False, bht=False, open=False):
     print("=======================================")
     if mio:
         t0 = time.time()
@@ -103,18 +122,44 @@ def comparacion_tiempos(data, labels, *, mio=True, sklearn=True):
         print("sklearn:")
         print("Tiempo de ejecucion: {}".format(time.strftime("%H:%M:%S", time.gmtime(t_diff))))
         print("=======================================")
+    if bht:
+        t0 = time.time()
+        probar_bht(data, labels, verbose=0)
+        t1 = time.time()
+        t_diff = t1-t0
+        print("bht-sne:")
+        print("Tiempo de ejecucion: {}".format(time.strftime("%H:%M:%S", time.gmtime(t_diff))))
+        print("=======================================")
+    if open:
+        t0 = time.time()
+        probar_open(data, labels, verbose=0)
+        t1 = time.time()
+        t_diff = t1-t0
+        print("openTSNE:")
+        print("Tiempo de ejecucion: {}".format(time.strftime("%H:%M:%S", time.gmtime(t_diff))))
+        print("=======================================")
 
-def comparacion_resultados(data, labels, *, mio=True, sklearn=True, caso_mio="last"):
+def comparacion_resultados(data, labels, *, mio=False, sklearn=False, bht=False, open=False, caso_mio="last"):
     if mio:
         probar_mio(data, labels, verbose=0, display=caso_mio, title="Mytsnelib")
     if sklearn:
         probar_sklearn(data, labels, verbose=0, display=True, title="Sklearn")
+    if bht:
+        probar_bht(data, labels, verbose=0, display=True, title="bht-sne")
+    if open:
+        probar_open(data, labels, verbose=0, display=True, title="OpenTSNE")
 
 def prueba_individual(data, labels, *, caso, display=None):
     if caso=="mio":
-        probar_mio(data, labels, verbose=1, display=display)
+        probar_mio(data, labels, display=display)
     elif caso=="sklearn":
         probar_sklearn(data, labels)
+    elif caso=="bht":
+        probar_bht(data, labels)
+    elif caso=="open":
+        probar_open(data, labels)
+    else:
+        print("Caso predeterminado")
 
 
 #=================================================================#
@@ -133,7 +178,7 @@ labels = labels_full[index_start:index_start+include_n_samples]
 
 #comparacion_resultados(data, labels)
 
-prueba_individual(data, labels, caso="mio", display="cost")
+prueba_individual(data_full, labels_full, caso="mio", display="cost")
 
 
 

@@ -86,11 +86,6 @@ def check_arrays_compatible_2(X,Y=None):
     return X,Y
 
 
-
-
-
-
-
 #==========================================================================
 #====Calculan la distancia y la devuelven sin hacer la raiz cuadrada=======
 #==========================================================================
@@ -112,9 +107,7 @@ def pairwise_euclidean_distance(X):
 
     X = np.array(X)
 
-    #return _pairwise_euclidean_distance(X)
     return _pairwise_euclidean_distance_fast(X)
-    #return _pairwise_euclidean_distance_seguro(X)
     
 
 def _pairwise_euclidean_distance(X:np.ndarray):
@@ -127,12 +120,6 @@ def _pairwise_euclidean_distance(X:np.ndarray):
     return np.abs(dist)
 def _pairwise_euclidean_distance_fast(X):
     return np.sum((X[None, :] - X[:, None])**2, 2)
-def _pairwise_euclidean_distance_seguro(X):
-    result = np.zeros(shape=(X.shape[0], X.shape[0]))
-    for i in range(0, X.shape[0]):
-        for j in range(0, X.shape[0]):
-            result[i][j] += np.sum(np.power(X[i]-X[j], 2))
-    return result
 
 
 
@@ -398,23 +385,3 @@ def get_nearest_neighbors_indexes_by_distance(distances, k=None) -> np.ndarray:
     else:
         return result
 
-
-
-#np.argsort(array): devuelve un array que actua como un "pointer" de las posiciones de los valores en el array dado
-#           ejemplo:
-#                   array_argsort = np.argsort(array_original)
-#                   array_ordenado = []
-#                   for i in range(0 array_argsort.shape[0]):
-#                       for j in range(0 array_argsort.shape[1]):
-#                           indice_valor = array_argsort[i][j]
-#                           array_ordenado[i][j] = array[i][indice_valor]
-
-
-#en el caso de la matriz de distancias:
-#   i: individuo
-#   j: vecino
-#
-#   distancias_argsort = np.argsort(distancias)
-#   distancias_argsort[i]: indices j de los vecinos ordenados
-#   j = distancias_argsort[i][k]
-#   distancias[i][j] --> distancia entre el individuo i y su k-esimo vecino mas cercano

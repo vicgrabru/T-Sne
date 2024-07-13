@@ -359,7 +359,7 @@ class TSne():
 
         return result
 
-    def momentum(self,t):
+    def _momentum(self,t):
         if t>self.momentum_params[0]:
             self.early_exaggeration=1
             result = self.momentum_params[2]
@@ -456,7 +456,7 @@ class TSne():
         for i in range(2,t):
             grad = gradient_extra(affinities_original,self.early_exaggeration*self.affinities_history[-1],self.Y[-1])
             
-            y = self.Y[-1] - self.learning_rate*grad + self.momentum(i)*(self.Y[-1]-self.Y[-2])
+            y = self.Y[-1] - self.learning_rate*grad + self._momentum(i)*(self.Y[-1]-self.Y[-2])
             distances_embed = similarities.pairwise_euclidean_distance(y)
             affinities_embed = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
             cost = kl_divergence(affinities_original, affinities_embed)
