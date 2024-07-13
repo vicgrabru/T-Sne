@@ -49,6 +49,7 @@ def gradient_extra(P, Q, y):
     aux = 1 / (1 + dists)
     return 4 * (np.expand_dims(pq_diff, 2) * y_diff * np.expand_dims(aux,2)).sum(1)
 
+#cambio de prueba
 
 #recibe "joint probabilities"
 def kl_divergence(high_dimension_p, low_dimension_q) -> float:
