@@ -107,10 +107,10 @@ def pairwise_euclidean_distance(X):
 
     X = np.array(X)
 
-    return _pairwise_euclidean_distance_fast(X)
+    return __pairwise_euclidean_distance_fast(X)
     
 
-def _pairwise_euclidean_distance(X:np.ndarray):
+def __pairwise_euclidean_distance(X:np.ndarray):
     dist = np.zeros(shape=(X.shape[0],X.shape[0]))
     X_dot_product = (X*X).sum(axis=1)
     dist += X_dot_product.reshape(-1,1)
@@ -118,7 +118,7 @@ def _pairwise_euclidean_distance(X:np.ndarray):
     dist += X_dot_product.reshape(1,-1)
 
     return np.abs(dist)
-def _pairwise_euclidean_distance_fast(X):
+def __pairwise_euclidean_distance_fast(X):
     return np.sum((X[None, :] - X[:, None])**2, 2)
 
 
@@ -278,10 +278,10 @@ def search_deviations_2(distances:np.ndarray, perplexity=10, tolerance=0.1, iter
     result = np.zeros(distances.shape[0])
     for i in range(distances.shape[0]):
         func = lambda sig: perplexity_from_conditional_p(conditional_p(distances[i:i+1, :], np.array([sig])))
-        result[i] = _search_deviation_indiv(func, perplexity)
+        result[i] = __search_deviation_indiv(func, perplexity)
     return result
 
-def _search_deviation_indiv(func, perplexity_goal, tolerance=1e-10, max_iters=1000, min_deviation=1e-20, max_deviation=10000):
+def __search_deviation_indiv(func, perplexity_goal, tolerance=1e-10, max_iters=1000, min_deviation=1e-20, max_deviation=10000):
     for _ in range(max_iters):
         new_deviation = (min_deviation+max_deviation)/2.
         perplexity = func(new_deviation)

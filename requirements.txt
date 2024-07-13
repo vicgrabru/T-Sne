@@ -1,2 +1,0 @@
-correr el comando
-    C:/Users/victo/TFG/Scripts/activate

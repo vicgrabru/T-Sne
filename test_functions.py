@@ -1,7 +1,7 @@
 import numpy as np
 
 
-from mytsnelib import functions
+
 import mytsnelib.utils as ut
 import time
 
@@ -30,6 +30,7 @@ def test_haversine():
 
 
 def probar_mio(data, labels, *, verbose=1, display=None, title=None):
+    from mytsnelib import functions
     model = functions.TSne(n_dimensions=n_dimensions,
                            perplexity=perplexity,
                            perplexity_tolerance=perplexity_tolerance,
@@ -37,7 +38,6 @@ def probar_mio(data, labels, *, verbose=1, display=None, title=None):
                            max_iter=max_iter,
                            verbose=verbose,
                            seed=seed)
-
     model.fit(data,classes=labels)
     if display is not None:
         if display=="last":
@@ -178,7 +178,7 @@ labels = labels_full[index_start:index_start+include_n_samples]
 
 #comparacion_resultados(data, labels)
 
-prueba_individual(data_full, labels_full, caso="mio", display="cost")
+prueba_individual(data, labels, caso="mio", display="cost")
 
 
 
