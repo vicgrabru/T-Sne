@@ -18,6 +18,7 @@ learning_rate = 200
 max_iter = 1000
 momentum_params = [1.0, 0.5, 0.8]
 seed = 3
+iters_check = 1
 #======================================================#
 
 
@@ -37,7 +38,8 @@ def probar_mio(data, labels, *, verbose=1, display=None, title=None):
                            n_neighbors=n_neighbors,
                            max_iter=max_iter,
                            verbose=verbose,
-                           seed=seed)
+                           seed=seed,
+                           iters_check=iters_check)
     model.fit(data,classes=labels)
     if display is not None:
         if display=="last":

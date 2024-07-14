@@ -75,6 +75,34 @@ def gradient_forces(P, Q, y):
     return 4*(np.sum(attractive, 1) - np.sum(repulsive, 1))
 
 
+def cost_divergence(p, q, *, calculate_trust=False, data=None, embed=None, k=None):
+    div = np.divide(p, q)
+    aux = np.log(div)
+    divergence = np.multiply(p, aux).sum()
+
+    if calculate_trust:
+        n = data.shape[0]
+        dist_original = np.sqrt(similarities.pairwise_euclidean_distance(data))
+        dist_embed = np.sqrt(similarities.pairwise_euclidean_distance(embed))
+
+        np.fill_diagonal(dist_original, np.inf)
+        np.fill_diagonal(dist_embed, np.inf)
+
+        rankings_vecinos_original = similarities.get_nearest_neighbors_indexes_by_distance(dist_original)
+        indices_vecinos_embed = similarities.get_nearest_neighbors_indexes_by_distance(dist_embed, k)
+
+        penalizacion = rankings_vecinos_original - k
+        sumatorio = 0
+
+        for i in range(0, n):
+            for j in indices_vecinos_embed[i]:
+                sumatorio += max(0,penalizacion[i][j])
+
+        trust = 1 - (2*sumatorio/(n*k*(2*n - 3*k - 1)))
+        return divergence, trust
+    else:
+        return divergence
+
 #recibe "joint probabilities"
 def kl_divergence(high_dimension_p, low_dimension_q) -> float:
     """Computes the Kullback-Leibler divergence
@@ -130,10 +158,10 @@ class TSne():
 
     def __init__(self, *, n_dimensions=2, perplexity=30, perplexity_tolerance=1e-10, n_neighbors = 10,
                  metric='euclidean', init_method="random", init_embed=None, early_exaggeration=None,
-                 learning_rate=500, max_iter=1000, momentum_params=[250.0,0.5,0.8], seed=None, verbose=0):
+                 learning_rate=500, max_iter=1000, momentum_params=[250.0,0.5,0.8], seed=None, verbose=0, iters_check=50):
         #validacion de parametros
-        self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,
-                                early_exaggeration, learning_rate, max_iter, momentum_params, seed, verbose)
+        self._input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,
+                                early_exaggeration, learning_rate, max_iter, momentum_params, seed, verbose, iters_check)
 
         if n_neighbors==None:
             n_neighbors = 3*perplexity + 1
@@ -155,6 +183,7 @@ class TSne():
             self.early_exaggeration = early_exaggeration
         self.n_neighbors = n_neighbors
         self.verbose = verbose
+        self.iters_check = iters_check
 
         #set parameters to use later
         self.element_classes = None
@@ -171,16 +200,15 @@ class TSne():
             seed = int(time.time())
         self.random_state = np.random.RandomState(seed)
 
-    def __input_validation(self,n_dimensions,perplexity,perplexity_tolerance,n_neighbors,metric,init_method,init_embed,
-                           early_exaggeration,learning_rate,max_iter,momentum_params, seed, verbose):
+    def _input_validation(self,n_dimensions,perplexity,perplexity_tolerance,n_neighbors,metric,init_method,init_embed,
+                           early_exaggeration,learning_rate,max_iter,momentum_params, seed, verbose, iters_check):
         accepted_methods = ["random", "precomputed"]
         accepted_metrics=["euclidean"]
         accepted_momentum_param_types = [np.float64,np.float32]
         invalid_numbers = [np.nan, np.inf]
-        accepted_verboses = range(0,2)
-
-        #n_dimensions: int
-        if n_dimensions is not None:
+        accepted_verboses = range(0,3)
+        max_iter_valid = False
+        if n_dimensions is not None: # n_dimensions: int
             if not isinstance(n_dimensions, int):
                 raise ValueError("n_dimensions must be of int type")
             elif n_dimensions in invalid_numbers:
@@ -189,51 +217,39 @@ class TSne():
                 raise ValueError("n_dimensions must be a positive number")
             elif n_dimensions>3:
                 print("**Warning: If you use more than 3 dimensions, you will not be able to display the embedding**")
-
-        # perplexity: int
-        if perplexity is not None:
+        if perplexity is not None: # perplexity: int
             if not isinstance(perplexity, int):
                 raise ValueError("perplexity must be of int type")
             elif perplexity in invalid_numbers:
                 raise ValueError("perplexity must be finite and not NaN")
             elif perplexity <1:
                 raise ValueError("perplexity must be a positive number")
-
-        # perplexity_tolerance: float
-        if perplexity_tolerance is not None:
+        if perplexity_tolerance is not None: # perplexity_tolerance: float
             if not isinstance(perplexity_tolerance, float):
                 raise ValueError("perplexity_tolerance must be of float type")
             elif perplexity_tolerance in invalid_numbers:
                 raise ValueError("perplexity_tolerance must be finite and not NaN")
             elif perplexity_tolerance < 0:
                 raise ValueError("perplexity_tolerance must be a positive number or 0")
-
-        # n_neighbors: int
-        if n_neighbors is not None:
+        if n_neighbors is not None: # n_neighbors: int
             if not isinstance(n_neighbors, int):
                 raise ValueError("n_neighbors must be of int type")
             elif n_neighbors in invalid_numbers:
                 raise ValueError("n_neighbors must be finite and not NaN")
             elif n_neighbors <0:
                 raise ValueError("n_neighbors must be at least 0")
-        
-        # metric: str
-        if metric is not None:
+        if metric is not None: # metric: str
             if not isinstance(metric, str):
                 raise ValueError("metric must be of str type")
             elif metric not in accepted_metrics:
                 raise ValueError("Only currently accepted metric is euclidean")
-        
-        # init_method: str
-        if init_method is not None:
+        if init_method is not None: # init_method: str
             if not isinstance(init_method, str):
                 raise ValueError("init_method must be of str type")
             else: 
                 if init_method not in accepted_methods:
                     raise ValueError("Only init_method values accepted are random and precomputed")
-        
-        # init_embed: ndarray of shape (n_samples, n_features)
-        if init_embed is not None:
+        if init_embed is not None: # init_embed: ndarray of shape (n_samples, n_features)
             if isinstance(init_embed, np.ndarray):
                 if not isinstance(init_embed.ndtype, np.number):
                     raise ValueError("Data type of the initial embedding must be a number")
@@ -241,36 +257,30 @@ class TSne():
                     raise ValueError("init_embed cant have NaN or an infinite number")
             else:
                 raise ValueError("init_embed must be a ndarray")
-        
-        # early_exaggeration: int
-        if early_exaggeration is not None:
+        if early_exaggeration is not None: # early_exaggeration: int
             if not isinstance(early_exaggeration, int):
                 raise ValueError("early_exaggeration must be of int type")
             elif early_exaggeration in invalid_numbers:
                 raise ValueError("early_exaggeration must be finite and not NaN")
             elif early_exaggeration <1:
                 raise ValueError("early_exaggeration must be a positive number")
-        
-        # learning_rate: int
-        if learning_rate is not None:
+        if learning_rate is not None: # learning_rate: int
             if not isinstance(learning_rate, int):
                 raise ValueError("learning_rate must be of int type")
             elif learning_rate in invalid_numbers:
                 raise ValueError("learning_rate must be finite and not NaN")
             elif learning_rate <1:
                 raise ValueError("learning_rate must be a positive number")
-        
-        # max_iter: int
-        if max_iter is not None:
+        if max_iter is not None: # max_iter: int
             if not isinstance(max_iter, int):
                 raise ValueError("max_iter must be of int type")
             elif max_iter in invalid_numbers:
                 raise ValueError("max_iter must be finite and not NaN")
             elif max_iter <1:
                 raise ValueError("max_iter must be a positive number")
-        
-        # momentum_params: ndarray of shape (3,)
-        if momentum_params is not None:
+            else:
+                max_iter_valid = True
+        if momentum_params is not None: # momentum_params: ndarray of shape (3,)
             if not isinstance(momentum_params, np.ndarray):
                 if np.asarray(momentum_params).shape!=(3,):
                     raise ValueError("momentum_params must be a ndarray of shape (3,)")
@@ -282,22 +292,26 @@ class TSne():
                 raise ValueError("All elements must be positive numbers")
             elif not (momentum_params[0]).is_integer():
                 raise ValueError("The time threshold cant be a decimal number")
-
-        # seed: int
-        if seed is not None:
+        if seed is not None: # seed: int
             if not isinstance(seed, int):
                 raise ValueError("seed must be an integer")
             elif seed<0:
                 raise ValueError("seed must be a positive integer")
-        
-        # verbose: int
-        if verbose is not None:
+        if verbose is not None: # verbose: int
             if not isinstance(verbose, int):
                 raise ValueError("verbose must be an integer")
             elif verbose not in accepted_verboses:
                 raise ValueError("verbose must be within the range [0,2)")
+        if iters_check is not None: #iters_check: int
+            if not isinstance(iters_check, int):
+                raise ValueError("iters_check must be an integer")
+            elif iters_check<1:
+                raise ValueError("iters_check must be at least 1")
+            if max_iter_valid:
+                if iters_check>max_iter:
+                    raise ValueError("iters_check cannot be greater than max_iter")
 
-    def __array_validation(self, input):
+    def _array_validation(self, input, *, embed:np.ndarray=None):
         
         if not hasattr(input, "__len__"):
             raise ValueError("The given input is not array-like")
@@ -310,12 +324,16 @@ class TSne():
         if result.shape[0]<10:
             raise ValueError("Not enough samples. Must be at least 10 samples.")
         
+        if embed is not None:
+            if input.shape[0] != embed.shape[0]:
+                raise ValueError("The input data must have the same number of samples as the given embedding")
+
         if result.shape[0] <= self.n_neighbors:
             raise ValueError("The number of samples cannot be lower than the number of neighbors")
 
         return result
 
-    def __momentum(self,t):
+    def _momentum(self,t):
         if t>self.momentum_params[0]:
             self.early_exaggeration=1
             result = self.momentum_params[2]
@@ -323,7 +341,7 @@ class TSne():
             result = self.momentum_params[1]
         return result
 
-    def __initial_embed(self, *, data):
+    def _initial_embed(self, *, data):
         """Returns an initial embedding following the given parameters.
 
         Parameters
@@ -358,18 +376,17 @@ class TSne():
             Array with the class that each element in X belongs to.
         """
 
-        X = self.__array_validation(input)
+        X = self._array_validation(input, embed=self.init_embed)
 
         if self.verbose>0:
             t0 = time.time()
         
         self.learning_rate = max(self.learning_rate, np.floor([X.shape[0]/12])[0])
 
-        self.__gradient_descent(self.max_iter, X)
+        self._gradient_descent(self.max_iter, X)
 
         if classes is not None:
             self.element_classes = classes
-
 
         if self.verbose>0:
             t1 = time.time()
@@ -384,20 +401,22 @@ class TSne():
         self.fitting_done = True
         return result
 
-    def __gradient_descent(self, t, data):
+    def _gradient_descent(self, t, data):
         distances_original = similarities.pairwise_euclidean_distance(data)
         p = similarities.joint_probabilities(distances_original, self.perplexity, self.perplexity_tolerance)
 
         if self.init_embed is None:
-            y = self.__initial_embed(data=data)
+            y = self._initial_embed(data=data)
         else:
             y = self.init_embed
 
         
         dist_embed = similarities.pairwise_euclidean_distance(y)
         q = similarities.joint_probabilities(dist_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-        cost = kl_divergence(p, q)
-        trust = trustworthiness(data, y, self.n_neighbors)
+        cost, trust = cost_divergence(p, q, calculate_trust=True, data=data, embed=y, k=self.n_neighbors)
+
+        # cost = kl_divergence(p, q)
+        # trust = trustworthiness(data, y, self.n_neighbors)
         
         
         self.embed_history.append(y); self.embed_history.append(y)
@@ -405,8 +424,8 @@ class TSne():
         self.cost_history.append(cost); self.cost_history.append(cost)
         self.trust_history.append(trust); self.trust_history.append(trust)
 
-        self.best_cost = cost
-        self.best_trust = trust
+        # self.best_cost = cost
+        # self.best_trust = trust
         self.best_iter_cost = 1
         self.best_iter_trust = 1
 
@@ -415,21 +434,23 @@ class TSne():
             grad = gradient_extra(p,self.early_exaggeration*self.q_history[-1],self.embed_history[-1])
             #grad = gradient_forces(p,self.early_exaggeration*self.q_history[-1],self.embed_history[-1])
             
-            y = self.embed_history[-1] - self.learning_rate*grad + self.__momentum(i)*(self.embed_history[-1]-self.embed_history[-2])
+            y = self.embed_history[-1] - self.learning_rate*grad + self._momentum(i)*(self.embed_history[-1]-self.embed_history[-2])
             distances_embed = similarities.pairwise_euclidean_distance(y)
             q = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-            cost = kl_divergence(p, q)
-            if cost<self.cost_history[self.best_iter_cost]:
-                self.best_iter_cost = i
-            
-            trust = trustworthiness(data, y, self.n_neighbors)
-            if trust>self.trust_history[self.best_iter_trust]:
-                self.best_iter_trust = i
             
             self.embed_history.append(y)
             self.q_history.append(q)
-            self.cost_history.append(cost)
-            self.trust_history.append(trust)
+
+            if i%self.iters_check==0 or i==t-1:
+                cost, trust = cost_divergence(p, q, calculate_trust=True, data=data, embed=y, k=self.n_neighbors)
+                # cost = kl_divergence(p, q)
+                if cost<self.cost_history[self.best_iter_cost]:
+                    self.best_iter_cost = i
+                # trust = trustworthiness(data, y, self.n_neighbors)
+                if trust>self.trust_history[self.best_iter_trust]:
+                    self.best_iter_trust = i
+                self.cost_history.append(cost)
+                self.trust_history.append(trust)
 
     def display_embed(self, *, display_best_iter_cost=False, display_best_iter_trust=False, t:int=-1, title=None):
         """Displays the resulting embedding.
