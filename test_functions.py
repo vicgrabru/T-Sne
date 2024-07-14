@@ -7,7 +7,7 @@ import time
 
 #======================================================#
 n_dimensions = 2
-perplexity = 40
+perplexity = 50
 perplexity_tolerance = 1e-10
 n_neighbors = 10
 metric = "euclidean"
@@ -16,9 +16,9 @@ init_embed = None
 early_exaggeration = 4
 learning_rate = 200
 max_iter = 1000
-momentum_params = [1.0, 0.5, 0.8]
+momentum_params = [250.0, 0.5, 0.8]
 seed = 3
-iters_check = 1
+iters_check = 50
 #======================================================#
 
 
@@ -30,7 +30,7 @@ def test_haversine():
     assert True
 
 
-def probar_mio(data, labels, *, verbose=1, display=None, title=None):
+def probar_mio(data, labels, *, verbose=1, display=None, title=None, compute_extra):
     from mytsnelib import functions
     model = functions.TSne(n_dimensions=n_dimensions,
                            perplexity=perplexity,
@@ -40,7 +40,7 @@ def probar_mio(data, labels, *, verbose=1, display=None, title=None):
                            verbose=verbose,
                            seed=seed,
                            iters_check=iters_check)
-    model.fit(data,classes=labels)
+    model.fit(data,classes=labels, compute_cost_trust=compute_extra)
     if display is not None:
         if display=="last":
             model.display_embed(t=-1, title=title)
@@ -105,6 +105,35 @@ def probar_otra_cosa():
     print("----------------------")
 
 
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#POSIBLE SOLUCION PARA ELIMINAR EL BUCLE ANIDADO DE SACAR LOS INDICES DE LOS VECINOS MAS CERCANOS
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+def probar_otra_cosa_2():
+    
+    c = (2,3)
+    indices_c = np.indices(c)
+    
+    x = np.arange(20).reshape(5, 4)
+    row, col = np.indices((2, 3))
+
+    print("===============================")
+    print("x = np.arange(20).reshape(5, 4)")
+    print("-------------------------------")
+    print("x: \n{}".format(x))
+    print("-------------------------------")
+    print("row, col = np.indices((2, 3))")
+    print("row: \n{}".format(row))
+    print("-------------------------------")
+    print("col: \n{}".format(col))
+    print("-------------------------------")
+    print("x[row, col]: \n{}".format(x[row, col]))
+    print("np.indices((2,3)): \n{}".format(indices_c))
+    print("===============================")
+    
+
+    # print("c: {}".format(c))
+    # print("np.indices(c): {}".format(indices_c))
+
 
 def comparacion_tiempos(data, labels, *, mio=False, sklearn=False, bht=False, open=False):
     print("=======================================")
@@ -151,9 +180,9 @@ def comparacion_resultados(data, labels, *, mio=False, sklearn=False, bht=False,
     if open:
         probar_open(data, labels, verbose=0, display=True, title="OpenTSNE")
 
-def prueba_individual(data, labels, *, caso, display=None):
+def prueba_individual(data, labels, *, caso, display=None, compute_extra=True):
     if caso=="mio":
-        probar_mio(data, labels, display=display)
+        probar_mio(data, labels, display=display, compute_extra=compute_extra)
     elif caso=="sklearn":
         probar_sklearn(data, labels)
     elif caso=="bht":
@@ -180,11 +209,13 @@ labels = labels_full[index_start:index_start+include_n_samples]
 
 #comparacion_resultados(data, labels)
 
-prueba_individual(data, labels, caso="mio", display="cost")
 
+#prueba_individual(data, labels, caso="mio", display="trust", compute_extra=True)
 
 
 
 #probar_otra_cosa()
+
+probar_otra_cosa_2()
 
 

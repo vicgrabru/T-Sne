@@ -6,6 +6,26 @@ import matplotlib.pyplot as plt
 from mytsnelib import similarities
 import time
 
+def print_efficiency(t_diff, n_iters, n_ms_digits=None):
+    t_diff_clean = time.gmtime(t_diff)
+    t_diff_exact_ms = t_diff - t_diff_clean.tm_sec
+    
+    t_iter = t_diff/n_iters
+    t_iter_clean = time.gmtime(t_iter)
+    t_iter_exact_ms = t_iter - t_iter_clean.tm_sec
+
+    if n_ms_digits is None or n_ms_digits<=0:
+        n = -3
+    else:
+        n = n_ms_digits
+    
+    print("=================================================================")
+    print("Embedding process finished")
+    print("Execution time (min:sec): {}.{}".format(time.strftime("%M:%S", t_diff_clean), str(t_diff_exact_ms)[2:2+n]))
+    print("Time/Iteration (s): {}.{}".format(time.strftime("%S", t_iter_clean), str(t_iter_exact_ms)[2:2+n]))
+    print("=================================================================")
+    print("")
+
 def gradient(high_dimension_probs, low_dimension_probs, embed):
     
     embed_distances = similarities.pairwise_euclidean_distance(embed)
@@ -63,13 +83,44 @@ def gradient_forces(P, Q, y):
     pq = np.multiply(P,Q)*z
     np.fill_diagonal(pq, 0.)
     attractive = np.multiply(np.expand_dims(pq, 2), y_diff)
-    #np.fill_diagonal(attractive, 0)
 
     # fuerzas repulsivas
     q2 = np.power(Q, 2)*z
     np.fill_diagonal(q2, 0.)
     repulsive = np.multiply(np.expand_dims(q2, 2), y_diff)
     #np.fill_diagonal(repulsive, 0)
+
+    # paso 3: combinacion
+    return 4*(np.sum(attractive, 1) - np.sum(repulsive, 1))
+
+def gradient_forces_v2(P, Q, y):
+    """
+    Optimizaciones sacadas de esta pagina
+    Optimizacion 1 -> https://opentsne.readthedocs.io/en/latest/tsne_algorithm.html#attractive-forces
+    Optimizacion 2 -> https://opentsne.readthedocs.io/en/latest/tsne_algorithm.html#repulsive-forces
+    """
+    distancias = similarities.pairwise_euclidean_distance(y)
+    y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
+
+    # paso 1: obtener Z
+    dists = 1/(1+distancias)
+    np.fill_diagonal(dists, 0.)
+    z = dists.sum()
+
+    # paso 2: calcular fuerzas atractivas y repulsivas
+    
+    # fuerzas atractivas
+    # Optimizacion 1: considerar solo los 3*Perplexity vecinos mas cercanos
+    
+    pq = np.multiply(P,Q)*z
+    np.fill_diagonal(pq, 0.)
+    attractive = np.multiply(np.expand_dims(pq, 2), y_diff)
+
+    # fuerzas repulsivas
+    # Optimizacion 2: TODO
+    q2 = np.power(Q, 2)*z
+    np.fill_diagonal(q2, 0.)
+    repulsive = np.multiply(np.expand_dims(q2, 2), y_diff)
 
     # paso 3: combinacion
     return 4*(np.sum(attractive, 1) - np.sum(repulsive, 1))
@@ -160,7 +211,7 @@ class TSne():
                  metric='euclidean', init_method="random", init_embed=None, early_exaggeration=None,
                  learning_rate=500, max_iter=1000, momentum_params=[250.0,0.5,0.8], seed=None, verbose=0, iters_check=50):
         #validacion de parametros
-        self._input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,
+        self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,
                                 early_exaggeration, learning_rate, max_iter, momentum_params, seed, verbose, iters_check)
 
         if n_neighbors==None:
@@ -200,7 +251,7 @@ class TSne():
             seed = int(time.time())
         self.random_state = np.random.RandomState(seed)
 
-    def _input_validation(self,n_dimensions,perplexity,perplexity_tolerance,n_neighbors,metric,init_method,init_embed,
+    def __input_validation(self,n_dimensions,perplexity,perplexity_tolerance,n_neighbors,metric,init_method,init_embed,
                            early_exaggeration,learning_rate,max_iter,momentum_params, seed, verbose, iters_check):
         accepted_methods = ["random", "precomputed"]
         accepted_metrics=["euclidean"]
@@ -311,7 +362,7 @@ class TSne():
                 if iters_check>max_iter:
                     raise ValueError("iters_check cannot be greater than max_iter")
 
-    def _array_validation(self, input, *, embed:np.ndarray=None):
+    def __array_validation(self, input, *, embed:np.ndarray=None):
         
         if not hasattr(input, "__len__"):
             raise ValueError("The given input is not array-like")
@@ -333,7 +384,7 @@ class TSne():
 
         return result
 
-    def _momentum(self,t):
+    def __momentum(self,t):
         if t>self.momentum_params[0]:
             self.early_exaggeration=1
             result = self.momentum_params[2]
@@ -341,7 +392,7 @@ class TSne():
             result = self.momentum_params[1]
         return result
 
-    def _initial_embed(self, *, data):
+    def __initial_embed(self, *, data):
         """Returns an initial embedding following the given parameters.
 
         Parameters
@@ -365,7 +416,7 @@ class TSne():
         result = self.random_state.standard_normal(size=(data.shape[0], self.n_dimensions))
         return result
 
-    def fit(self, input, classes:np.ndarray=None):
+    def fit(self, input, classes:np.ndarray=None, compute_cost_trust=True):
         """Fit the given data and perform the embedding
 
         Parameters
@@ -376,81 +427,103 @@ class TSne():
             Array with the class that each element in X belongs to.
         """
 
-        X = self._array_validation(input, embed=self.init_embed)
+        X = self.__array_validation(input, embed=self.init_embed)
 
         if self.verbose>0:
-            t0 = time.time()
+            t0 = time.time_ns()
         
         self.learning_rate = max(self.learning_rate, np.floor([X.shape[0]/12])[0])
 
-        self._gradient_descent(self.max_iter, X)
+        self.__gradient_descent(self.max_iter, X)
+
+        if self.verbose>0:
+            t1 = time.time_ns()
+            t_diff = (t1-t0)*1e-9
+            print_efficiency(t_diff, self.max_iter, 6)
 
         if classes is not None:
             self.element_classes = classes
 
-        if self.verbose>0:
-            t1 = time.time()
-            tdiff = t1-t0
-            t_iter = tdiff/self.max_iter
-            print("=================================================================")
-            print("Embedding process finished")
-            print('Execution time:', time.strftime("%H:%M:%S", time.gmtime(tdiff)))
-            print('Time/Iteration:', time.strftime("%H:%M:%S", time.gmtime(t_iter)))
-            print("=================================================================")
+        
+            
         result = np.array(self.embed_history[-1])
         self.fitting_done = True
+
+        if compute_cost_trust:
+            #get best cost iter
+            aux = np.argmin(self.cost_history)
+            if aux==len(self.cost_history)-1:
+                self.best_iter_cost = -1
+            else:
+                self.best_iter_cost = max(0, (aux-1)*self.iters_check)
+            
+            #get best trust iter
+            aux = np.argmax(self.trust_history)
+            if aux==len(self.trust_history)-1:
+                self.best_iter_trust = -1
+            else:
+                self.best_iter_trust = max(0, (aux-1)*self.iters_check)
+
         return result
 
-    def _gradient_descent(self, t, data):
+    def __gradient_descent(self, t, data, compute_cost_trust=True):
         distances_original = similarities.pairwise_euclidean_distance(data)
-        p = similarities.joint_probabilities(distances_original, self.perplexity, self.perplexity_tolerance)
+        p = similarities.joint_probabilities_gaussian(distances_original, self.perplexity, self.perplexity_tolerance)
 
         if self.init_embed is None:
-            y = self._initial_embed(data=data)
+            y = self.__initial_embed(data=data)
         else:
             y = self.init_embed
 
         
         dist_embed = similarities.pairwise_euclidean_distance(y)
-        q = similarities.joint_probabilities(dist_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
-        cost, trust = cost_divergence(p, q, calculate_trust=True, data=data, embed=y, k=self.n_neighbors)
-
-        # cost = kl_divergence(p, q)
-        # trust = trustworthiness(data, y, self.n_neighbors)
-        
-        
+        q = similarities.joint_probabilities_student(dist_embed)
         self.embed_history.append(y); self.embed_history.append(y)
         self.q_history.append(q); self.q_history.append(q)
-        self.cost_history.append(cost); self.cost_history.append(cost)
-        self.trust_history.append(trust); self.trust_history.append(trust)
 
-        # self.best_cost = cost
-        # self.best_trust = trust
-        self.best_iter_cost = 1
-        self.best_iter_trust = 1
+
+        if compute_cost_trust:
+            cost, trust = cost_divergence(p, q, calculate_trust=True, data=data, embed=y, k=self.n_neighbors)
+
+            # cost = kl_divergence(p, q)
+            # trust = trustworthiness(data, y, self.n_neighbors)
+            
+            self.cost_history.append(cost)
+            self.trust_history.append(trust)
+
+            # self.best_cost = cost
+            # self.best_trust = trust
+            # self.best_iter_cost = 0
+            # self.best_iter_trust = 0
 
 
         for i in range(2,t):
             grad = gradient_extra(p,self.early_exaggeration*self.q_history[-1],self.embed_history[-1])
             #grad = gradient_forces(p,self.early_exaggeration*self.q_history[-1],self.embed_history[-1])
+            #grad = gradient_forces_v2(p,self.early_exaggeration*self.q_history[-1],self.embed_history[-1])
             
-            y = self.embed_history[-1] - self.learning_rate*grad + self._momentum(i)*(self.embed_history[-1]-self.embed_history[-2])
+            y = self.embed_history[-1] - self.learning_rate*grad + self.__momentum(i)*(self.embed_history[-1]-self.embed_history[-2])
             distances_embed = similarities.pairwise_euclidean_distance(y)
-            q = similarities.joint_probabilities(distances_embed,self.perplexity,self.perplexity_tolerance, distribution='t-student')
+            q = similarities.joint_probabilities_student(distances_embed)
             
             self.embed_history.append(y)
             self.q_history.append(q)
 
-            if i%self.iters_check==0 or i==t-1:
-                cost, trust = cost_divergence(p, q, calculate_trust=True, data=data, embed=y, k=self.n_neighbors)
-                # cost = kl_divergence(p, q)
-                if cost<self.cost_history[self.best_iter_cost]:
-                    self.best_iter_cost = i
-                # trust = trustworthiness(data, y, self.n_neighbors)
-                if trust>self.trust_history[self.best_iter_trust]:
-                    self.best_iter_trust = i
-                self.cost_history.append(cost)
-                self.trust_history.append(trust)
+            if compute_cost_trust:
+                index_check = i%self.iters_check
+                if index_check==0 or i==t-1:
+                    cost, trust = cost_divergence(p, q, calculate_trust=True, data=data, embed=y, k=self.n_neighbors)
+                    # cost = kl_divergence(p, q)
+                    # trust = trustworthiness(data, y, self.n_neighbors)
+                    self.cost_history.append(cost)
+                    self.trust_history.append(trust)
+
+                    # i_check = len(self.cost_history)
+                    # if cost<self.cost_history[self.best_iter_cost]:
+                    #     self.best_iter_cost = i_check
+                    # if trust>self.trust_history[self.best_iter_trust]:
+                    #     self.best_iter_trust = i_check
+                
 
     def display_embed(self, *, display_best_iter_cost=False, display_best_iter_trust=False, t:int=-1, title=None):
         """Displays the resulting embedding.
@@ -514,14 +587,14 @@ class TSne():
                     for i in range(0,x.shape[0]):
                         plt.plot(x[i],y[i],marker='o',linestyle='', markersize=8)
             
+            if t==-1:
+                t = len(self.embed_history)
 
             if title is None:
                 if display_best_iter_cost:
                     title = "Best embedding for kl divergence, achieved at t={} out of {} iterations".format(t, self.max_iter)
                 elif display_best_iter_trust:
                     title = "Best embedding for trustworthiness, achieved at t={} out of {} iterations".format(t, self.max_iter)
-                elif t==-1:
-                    title = "Embedding at the last iteration, at t={}".format(len(self.embed_history))
                 else:
                     title = "Embedding at t={} out of {} iterations".format(t, self.max_iter)
 
@@ -538,4 +611,4 @@ class TSne():
     
     def get_best_embedding_trust(self):
         assert self.fitting_done
-        return self.embed_history[self.best_iter_trust]
+        return self.embed_history[self.best_iter_cost]
