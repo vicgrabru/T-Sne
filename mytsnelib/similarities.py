@@ -91,7 +91,7 @@ def check_arrays_compatible_2(X,Y=None):
 #==========================================================================
 
 
-def pairwise_euclidean_distance(X):
+def pairwise_euclidean_distance(X, *, sqrt=False, inf_diag=False):
     """Compute the euclidean distances between the vectors of the given input.
     Parameters
     ----------
@@ -107,7 +107,14 @@ def pairwise_euclidean_distance(X):
 
     X = np.array(X)
 
-    return __pairwise_euclidean_distance_fast(X)
+    result = __pairwise_euclidean_distance_fast(X)
+
+    if sqrt:
+        result = np.sqrt(result)
+    if inf_diag:
+        np.fill_diagonal(result, np.inf)
+    
+    return result
     
 
 def __pairwise_euclidean_distance(X:np.ndarray):
@@ -296,78 +303,6 @@ def get_nearest_neighbors_indexes_by_distance(distances, k=None) -> np.ndarray:
     
     result = np.ones_like(distances).astype(int)
     indices_sorted = np.argsort(distances)
-    np.choose
-    # >>> choices = [[00, 01, 02, 03],
-    #                [10, 11, 12, 13],
-    #                [20, 21, 22, 23],
-    #                [30, 31, 32, 33]]
-    #
-    # >>> np.choose([2, 3, 1, 0], choices
-    #         array([20, 31, 12, 03])
-    #
-    #       result = np.choose(indices, source)
-    #       result.shape = indices.shape
-    #       result[a] = choices[]
-    #       result[0] = choices[indices[a]]
-    #       result[a][b] = indices[a][source[a][indices]]
-    #
-    #  a = [[1, 0, 1],
-    #       [0, 1, 0],
-    #       [1, 0, 1]]
-    # choices = [-10, 10]
-    # >>> np.choose(a, choices)
-    # array([[ 10, -10,  10],
-    #        [-10,  10, -10],
-    #        [ 10, -10,  10]])
-    #
-    #
-    #           result[a] = choices[indices[a]][a]
-    #
-    #           b = indices[a]
-    #           result [a] = choices[b][a]
-    #
-    #   indexx = indices_sorted[a][b]
-    #   result[a][x] = b
-    #
-    # distances = [[--, 01, 02, 03, 04],
-    #              [14, --, 11, 12, 13],
-    #              [23, 24, --, 21, 22],
-    #              [32, 33, 34, --, 31],
-    #              [41, 42, 43, 44, --]]
-    #
-    #
-    # indices_sorted = [[1, 2, 3, 4, 0],
-    #                   [2, 3, 4, 0, 1],
-    #                   [3, 4, 0, 1, 2],
-    #                   [4, 0, 1, 2, 3],
-    #                   [0, 1, 2, 3, 4]]
-    #
-    #   si usamos orden inverso:
-    # indices_sorted = [[0, 4, 3, 2, 1],
-    #                   [1, 0, 4, 3, 2],
-    #                   [2, 1, 0, 4, 3],
-    #                   [3, 2, 1, 0, 4],
-    #                   [4, 3, 2, 1, 0]]
-    #
-    #
-    #
-    #
-    # objetivo = [[4, 0, 1, 2, 3],
-    #             [3, 4, 0, 1, 2],
-    #             [2, 3, 4, 0, 1],
-    #             [1, 2, 3, 4, 0],
-    #             [0, 1, 2, 3, 4]]
-    #
-    #           the second element will be the second element of the fourth (3+1) choice array: 31
-    # 31, etc.
-    # ... )
-    # array([20, 31, 12,  3])
-    # >>> np.choose([2, 4, 1, 0], choices, mode='clip') # 4 goes to 3 (4-1)
-    # array([20, 31, 12,  3])
-    # >>> # because there are 4 choice arrays
-    # >>> np.choose([2, 4, 1, 0], choices, mode='wrap') # 4 goes to (4 mod 4)
-    # array([20,  1, 12,  3])
-    # >>> # i.e., 0
 
 
     #recorrer los individuos
@@ -375,55 +310,45 @@ def get_nearest_neighbors_indexes_by_distance(distances, k=None) -> np.ndarray:
         for j in range(0, distances.shape[1]):
             ind_rank = indices_sorted[i][j]
             result[i][ind_rank] = j
-        #result[i] = indices_sorted[i]
-
-
-        #x = indices_sorted[a][b]
-        #result[a][x] = b
-        #
-        # distances = [[--, 01, 02, 03, 04],
-        #              [14, --, 11, 12, 13],
-        #              [23, 24, --, 21, 22],
-        #              [32, 33, 34, --, 31],
-        #              [41, 42, 43, 44, --]]
-        #
-        #
-        # indices_sorted = [[1, 2, 3, 4, 0],
-        #                   [2, 3, 4, 0, 1],
-        #                   [3, 4, 0, 1, 2],
-        #                   [4, 0, 1, 2, 3],
-        #                   [0, 1, 2, 3, 4]]
-        #
-        #   si usamos orden inverso:
-        # indices_sorted = [[0, 4, 3, 2, 1],
-        #                   [1, 0, 4, 3, 2],
-        #                   [2, 1, 0, 4, 3],
-        #                   [3, 2, 1, 0, 4],
-        #                   [4, 3, 2, 1, 0]]
-        #
-        #
-        #
-        #
-        # objetivo = [[4, 0, 1, 2, 3],
-        #             [3, 4, 0, 1, 2],
-        #             [2, 3, 4, 0, 1],
-        #             [1, 2, 3, 4, 0],
-        #             [0, 1, 2, 3, 4]]
-        #
-        #   
-        #
-        #
-
-
-        # result[]
-
-
-
-
 
     
     if k is not None: #si se especifica un limite de vecinos
         return result[:,:k]
     else:
         return result
+
+
+def get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:
+    if distances.shape.__len__()!=2 or distances.shape[0] != distances.shape[1]:
+        raise ValueError("distances must be a square 2D array")
+    
+    n = distances.shape[0]
+    neighbors = distances.shape[1]
+
+    result = np.ones_like(distances).astype(int)
+    indices_sorted = np.argsort(distances)
+
+    #recorrer los individuos
+    for i in range(0, n):
+        for rank in range(0, neighbors):
+            j = indices_sorted[i][rank]
+            result[i][j] = rank+1
+    
+    return result
+
+def get_neighbor_ranking_by_distance_fast(distances) -> np.ndarray:
+    if distances.shape.__len__()!=2 or distances.shape[0] != distances.shape[1]:
+        raise ValueError("distances must be a square 2D array")
+    
+    # n = distances.shape[0]
+    # neighbors = distances.shape[1]
+
+    result = np.ones_like(distances).astype(int)
+    indices_sorted = np.argsort(distances)
+
+    filas, columnas = np.indices(distances.shape)
+
+    result[filas, indices_sorted] = columnas + 1
+    
+    return result
 

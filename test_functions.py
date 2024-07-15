@@ -1,7 +1,8 @@
 import numpy as np
 
 
-
+from mytsnelib import functions
+import sklearn.manifold as mnf
 import mytsnelib.utils as ut
 import time
 
@@ -17,7 +18,7 @@ early_exaggeration = 4
 learning_rate = 200
 max_iter = 1000
 momentum_params = [250.0, 0.5, 0.8]
-seed = 3
+seed = 4
 iters_check = 50
 #======================================================#
 
@@ -30,8 +31,7 @@ def test_haversine():
     assert True
 
 
-def probar_mio(data, labels, *, verbose=1, display=None, title=None, compute_extra):
-    from mytsnelib import functions
+def probar_mio(data, labels, *, verbose=1, display=None, title=None, compute_extra=False, print_trust=False):
     model = functions.TSne(n_dimensions=n_dimensions,
                            perplexity=perplexity,
                            perplexity_tolerance=perplexity_tolerance,
@@ -40,7 +40,7 @@ def probar_mio(data, labels, *, verbose=1, display=None, title=None, compute_ext
                            verbose=verbose,
                            seed=seed,
                            iters_check=iters_check)
-    model.fit(data,classes=labels, compute_cost_trust=compute_extra)
+    data_embedded = model.fit(data,classes=labels, compute_cost_trust=compute_extra)
     if display is not None:
         if display=="last":
             model.display_embed(t=-1, title=title)
@@ -48,16 +48,27 @@ def probar_mio(data, labels, *, verbose=1, display=None, title=None, compute_ext
             model.display_embed(display_best_iter_cost=True, title=title)
         elif display=="trust":
             model.display_embed(display_best_iter_trust=True, title=title)
+    if print_trust:
+        trust =  functions.trustworthiness_safe(data, data_embedded, n_neighbors)
+        #trust =  functions.trustworthiness_fast(data, data_embedded, n_neighbors)
+        print("===============================================================================")
+        print("trust con el mio: {}".format(trust))
+        print("===============================================================================")
 
-def probar_sklearn(data, labels, *, verbose=1, display=False, title=None):
-    from sklearn.manifold import TSNE
-    data_embedded = TSNE(n_components=n_dimensions,
+def probar_sklearn(data, labels, *, verbose=1, display=False, title=None, print_trust=False):
+    data_embedded = mnf.TSNE(n_components=n_dimensions,
                          learning_rate='auto',
                          init='random',
                          perplexity=perplexity,
                          verbose=verbose).fit_transform(data)
     if display:
         ut.display_embed(data_embedded, labels, title=title)
+    if print_trust:
+        trust = mnf.trustworthiness(data, data_embedded, n_neighbors=n_neighbors)
+        print("===============================================================================")
+        print("trust con el de sklearn: {}".format(trust))
+        print("===============================================================================")
+        
 
 
 
@@ -120,6 +131,12 @@ def probar_otra_cosa_2():
     print("x = np.arange(20).reshape(5, 4)")
     print("-------------------------------")
     print("x: \n{}".format(x))
+    #  x:
+    # [[ 0  1  2  3]
+    #  [ 4  5  6  7]
+    #  [ 8  9 10 11]
+    #  [12 13 14 15]
+    #  [16 17 18 19]]
     print("-------------------------------")
     print("row, col = np.indices((2, 3))")
     print("row: \n{}".format(row))
@@ -127,12 +144,11 @@ def probar_otra_cosa_2():
     print("col: \n{}".format(col))
     print("-------------------------------")
     print("x[row, col]: \n{}".format(x[row, col]))
+    # x[row, col]:
+    # [[0 1 2]
+    #  [4 5 6]]
     print("np.indices((2,3)): \n{}".format(indices_c))
     print("===============================")
-    
-
-    # print("c: {}".format(c))
-    # print("np.indices(c): {}".format(indices_c))
 
 
 def comparacion_tiempos(data, labels, *, mio=False, sklearn=False, bht=False, open=False):
@@ -180,6 +196,14 @@ def comparacion_resultados(data, labels, *, mio=False, sklearn=False, bht=False,
     if open:
         probar_open(data, labels, verbose=0, display=True, title="OpenTSNE")
 
+def comparacion_trust(data, labels, *, mio=False, sklearn=False):
+    if mio:
+        probar_mio(data, labels, verbose=0, compute_extra=True, print_trust=True)
+    if sklearn:
+        probar_sklearn(data, labels, verbose=0, print_trust=True)
+    
+
+
 def prueba_individual(data, labels, *, caso, display=None, compute_extra=True):
     if caso=="mio":
         probar_mio(data, labels, display=display, compute_extra=compute_extra)
@@ -205,17 +229,14 @@ labels = labels_full[index_start:index_start+include_n_samples]
 #=================================================================#
 
 
-
-
 #comparacion_resultados(data, labels)
 
+#comparacion_trust(data, labels, mio=True, sklearn=True)
 
-#prueba_individual(data, labels, caso="mio", display="trust", compute_extra=True)
-
-
+prueba_individual(data, labels, caso="mio", compute_extra=False)
 
 #probar_otra_cosa()
 
-probar_otra_cosa_2()
+#probar_otra_cosa_2()
 
 
