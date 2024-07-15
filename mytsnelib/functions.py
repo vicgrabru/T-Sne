@@ -679,7 +679,7 @@ class TSne():
 
     # ================= tiempo en segundos de cada metodo====================================================
     # joint_probabilities_gaussian:         0.3569678
-    # pairwise_euclidean_distances(data):   0.0246438
+    # pairwise_euclidean_distances(input):  0.0246438
     # gradient:                             0.006298257014028056
     # pairwise_euclidean_distances(embed):  0.0020253497       
     # joint_probabilities_student:          0.00042859619999999996     
