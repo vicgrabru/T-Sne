@@ -119,7 +119,7 @@ def kl_divergence(high_dimension_p, low_dimension_q) -> float:
         divergence : double.
             The divergence.
     """
-    aux = np.log(high_dimension_p/low_dimension_q)
+    aux = np.log(high_dimension_p/np.maximum(low_dimension_q, 1e-10))
     result = np.multiply(high_dimension_p, aux)
 
     return np.sum(result)
@@ -482,6 +482,7 @@ class TSne():
         #========================================================================================================================================================
 
         self.embed_history.append(y); self.embed_history.append(y)
+        self.prev_embed_dist = dist_embed
         self.embed_dist_history.append(dist_embed); self.embed_dist_history.append(dist_embed)
         self.q_history.append(q); self.q_history.append(q)
 
@@ -497,12 +498,14 @@ class TSne():
             #====grad================================================================================================================================================
             if measure_efficiency:  # mediciones de tiempo
                 t_0 = time.time_ns()
-            grad = gradient(p, self.early_exaggeration*self.q_history[-1], self.embed_history[-1], self.embed_dist_history[-1], caso="forces")
+            
+            grad = gradient(p, q*self.early_exaggeration, self.embed_history[-1], self.embed_dist_history[-1], caso="safe")
+
             if measure_efficiency:  # mediciones de tiempo
                 self.t_diff_grad.append((time.time_ns()-t_0)*1e-9)
             #========================================================================================================================================================
 
-
+            #y{i} = y{i-1} + learning_rate*gradiente + momentum(t) * (y{i-1} - y{i-2})
             y = self.embed_history[-1] - self.learning_rate*grad + self.__momentum(i)*(self.embed_history[-1]-self.embed_history[-2])
 
 
@@ -524,6 +527,7 @@ class TSne():
             #========================================================================================================================================================
             
             self.embed_history.append(y)
+            self.prev_embed_dist = dist_embed
             self.embed_dist_history.append(dist_embed)
             self.q_history.append(q)
 
@@ -534,7 +538,7 @@ class TSne():
                         cost = kl_divergence(p, q)
                         self.cost_history.append(cost)
                     if compute_trust:
-                        trust = trustworthiness(self.dist_original_clean, self.n_neighbors, dist_embed=dist_embed)
+                        trust = trustworthiness(self.dist_original_clean, self.n_neighbors, dist_embed)
                         self.trust_history.append(trust)
                 
 

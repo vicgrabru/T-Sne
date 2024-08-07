@@ -116,10 +116,14 @@ data = data_full[index_start:index_start+include_n_samples,:]
 labels = labels_full[index_start:index_start+include_n_samples]
 #=================================================================#
 
+calcular_trust = False
+calcular_coste = False
+medir_rendimiento = False
+mostrar_resultado = None
 
 
 t0 = time.time_ns()
-probar_mio(data, labels, verbose=0, compute_cost=False, compute_trust=True)
+probar_mio(data, labels, verbose=0, compute_cost=calcular_coste, compute_trust=calcular_trust, display=mostrar_resultado, medir_tiempo=medir_rendimiento)
 t_diff_1 = (time.time_ns()-t0)*1e-9
 print("Tiempo de ejecucion mio (s): {}".format(t_diff_1))
 

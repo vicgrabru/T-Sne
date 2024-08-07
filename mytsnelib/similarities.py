@@ -180,7 +180,6 @@ def joint_probabilities_gaussian(distances:np.ndarray, perplexity:int, tolerance
     probabilities : ndarray of shape (n_samples, n_samples) that contains the joint probabilities between the points given.
     """
     devs = search_deviations(distances,perplexity,tolerance)
-    # cond_probs = np.maximum(conditional_p(distances, devs), 0.)
     cond_probs = conditional_p(distances, devs)
     result = (cond_probs+cond_probs.T)/(2*distances.shape[0])
     
@@ -267,29 +266,6 @@ def perplexity_from_conditional_p(cond_p:np.ndarray) -> np.ndarray:
 #===========Usar distancia habiendo hecho raiz cuadrada====================
 #==========================================================================
 #-----------------------Vecinos mas cercanos-------------------------------
-#¡¡¡¡¡¡¡¡¡¡¡¡¡¡CANDIDATO A OPTIMIZAR: nested for loop!!!!!!!!!!!!!!!!!!!!!!
-def get_nearest_neighbors_indexes_by_distance(distances, k=None) -> np.ndarray:
-    if distances.shape.__len__()!=2 or distances.shape[0] != distances.shape[1]:
-        raise ValueError("distances must be a square 2D array")
-    
-    
-    result = np.ones_like(distances).astype(int)
-    indices_sorted = np.argsort(distances)
-
-
-    #recorrer los individuos
-    for i in range(0, distances.shape[0]):
-        for j in range(0, distances.shape[1]):
-            ind_rank = indices_sorted[i][j]
-            result[i][ind_rank] = j
-
-    
-    if k is not None: #si se especifica un limite de vecinos
-        return result[:,:k]
-    else:
-        return result
-
-
 def get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:
     if distances.shape.__len__()!=2 or distances.shape[0] != distances.shape[1]:
         raise ValueError("distances must be a square 2D array")
