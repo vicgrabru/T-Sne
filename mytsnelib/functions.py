@@ -421,7 +421,7 @@ class TSne():
         #====p===================================================================================================================================================
         if measure_efficiency:  # mediciones de tiempo
             t_0 = time.time_ns()
-        p = similarities.joint_probabilities_gaussian(dist_original, self.perplexity, self.perplexity_tolerance)
+        p = similarities.joint_probabilities_gaussian(dist_original, self.perplexity, self.perplexity_tolerance, only_neighbors=False)
         if measure_efficiency:  # mediciones de tiempo
             self.t_diff_p = (time.time_ns()-t_0)*1e-9
         #========================================================================================================================================================
@@ -497,7 +497,7 @@ class TSne():
             #====grad================================================================================================================================================
             if measure_efficiency:  # mediciones de tiempo
                 t_0 = time.time_ns()
-            grad = gradient(p, self.early_exaggeration*self.q_history[-1], self.embed_history[-1], self.embed_dist_history[-1])
+            grad = gradient(p, self.early_exaggeration*self.q_history[-1], self.embed_history[-1], self.embed_dist_history[-1], caso="forces")
             if measure_efficiency:  # mediciones de tiempo
                 self.t_diff_grad.append((time.time_ns()-t_0)*1e-9)
             #========================================================================================================================================================

@@ -228,8 +228,6 @@ def __search_deviation_indiv(func, perplexity_goal, *, tolerance=1e-10, iters=10
         else:
             min_deviation = new_deviation
     return new_deviation
-#==========================================================================
-
 
 #==========================================================================
 #===Conditional Probabilities==============================================
