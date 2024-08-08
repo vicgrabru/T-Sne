@@ -6,8 +6,23 @@ import sklearn.manifold as mnf
 import mytsnelib.utils as ut
 import time
 
+
+
 def test_haversine():
     assert True
+
+
+#=================================================================#
+include_n_samples = 300
+index_start = 0
+
+read_csv = ut.read_csv("data/digits.csv", has_labels=True)
+data_full = read_csv[0].astype(np.int32)
+labels_full = read_csv[1]
+data = data_full[index_start:index_start+include_n_samples,:]
+labels = labels_full[index_start:index_start+include_n_samples]
+#=================================================================#
+
 
 #======================================================#
 n_dimensions = 2
@@ -23,9 +38,13 @@ max_iter = 1000
 momentum_params = [250.0, 0.5, 0.8]
 seed = 4
 iters_check = 50
+#------------------------------------------------------#
+calcular_coste=False
+calcular_trust=False
+medir_rendimiento=False
 #======================================================#
 
-def probar_mio(data, labels, *, verbose=1, display=None, title=None, compute_cost=False, compute_trust=False, medir_tiempo=False):
+def probar_mio(data, labels, *, verbose=1, display=None, title=None, compute_cost=False, medir_tiempo=False):
     model = functions.TSne(n_dimensions=n_dimensions,
                            perplexity=perplexity,
                            perplexity_tolerance=perplexity_tolerance,
@@ -34,29 +53,23 @@ def probar_mio(data, labels, *, verbose=1, display=None, title=None, compute_cos
                            verbose=verbose,
                            seed=seed,
                            iters_check=iters_check)
-    data_embedded = model.fit(data,classes=labels, compute_cost=compute_cost, compute_trust=compute_trust, measure_efficiency=medir_tiempo)
+    data_embedded = model.fit(data,classes=labels, compute_cost=compute_cost, measure_efficiency=medir_tiempo)
     if display is not None:
         if display=="last":
             model.display_embed(t=-1, title=title)
         elif display=="cost":
             model.display_embed(display_best_iter_cost=True, title=title)
-        elif display=="trust":
-            model.display_embed(display_best_iter_trust=True, title=title)
 
-def probar_sklearn(data, labels, *, verbose=1, display=False, title=None, print_trust=False):
-    data_embedded = mnf.TSNE(n_components=n_dimensions,
+def probar_sklearn(data, labels, *, verbose=1, display=False, title=None):
+    model = mnf.TSNE(n_components=n_dimensions,
                          learning_rate='auto',
                          init='random',
                          perplexity=perplexity,
-                         verbose=verbose).fit_transform(data)
+                         verbose=verbose)
+    data_embedded = model.fit_transform(data)
+
     if display:
         ut.display_embed(data_embedded, labels, title=title)
-    if print_trust:
-
-        trust = mnf.trustworthiness(data, data_embedded, n_neighbors=n_neighbors)
-        print("===============================================================================")
-        print("trust con el de sklearn: {}".format(trust))
-        print("===============================================================================")
         
 
 
@@ -80,55 +93,39 @@ def probar_open(data, labels, *, verbose=1, display=False, title=None):
 
 def probar_otra_cosa():
     print("Probando otra cosa")
-    a=np.array([[1,2],[1,2],[1,2],[1,2]])
-
-    a0 = np.expand_dims(a,0)
-    a1 = np.expand_dims(a,1)
-    a2 = np.expand_dims(a,2)
-
-
-    # y = (n_samples,n_dims)
-    # expand_dims -> n_dims +=1
-
-    print("----------------------")
-    print("a.shape: {}".format(a.shape))
-    print("a:\n {}".format(a))
-    print("----------------------")
-    print("a0.shape: {}".format(a0.shape))
-    print("a0:\n {}".format(a0))
-    print("----------------------")
-    print("a1.shape: {}".format(a1.shape))
-    print("a1:\n {}".format(a1))
-    print("----------------------")
-    print("a2.shape: {}".format(a2.shape))
-    print("a2:\n {}".format(a2))
-    print("----------------------")
+    a = b = 1
+    print("a: {}".format(a))
+    print("b: {}".format(b))
+    b = 2
+    print("a: {}".format(a))
+    print("b: {}".format(b))
 
 
-#=================================================================#
-include_n_samples = 300
-index_start = 0
-
-read_csv = ut.read_csv("data/digits.csv", has_labels=True)
-data_full = read_csv[0].astype(np.int32)
-labels_full = read_csv[1]
-data = data_full[index_start:index_start+include_n_samples,:]
-labels = labels_full[index_start:index_start+include_n_samples]
-#=================================================================#
-
-calcular_trust = False
-calcular_coste = False
-medir_rendimiento = False
-mostrar_resultado = None
 
 
-t0 = time.time_ns()
-probar_mio(data, labels, verbose=0, compute_cost=calcular_coste, compute_trust=calcular_trust, display=mostrar_resultado, medir_tiempo=medir_rendimiento)
-t_diff_1 = (time.time_ns()-t0)*1e-9
-print("Tiempo de ejecucion mio (s): {}".format(t_diff_1))
+
+# 0 para nada de informacion por consola
+# 1 para tiempo total de ejecucion
+# 2 para info extra
+nivel_verbose = 1
+
+
+
+
+
+mostrar_resultado = None # para no mostrar
+# mostrar_resultado = "last" # para mostrar la ultima iteracion
+# mostrar_resultado = "cost" # para mostrar la iteracion con mejor coste (calcular_coste debe estar en True)
+# mostrar_resultado = "trust" # para mostrar la iteracion con mejor trust (calcular_trust debe estar en True)
+
+
+# t0 = time.time_ns()
+probar_mio(data, labels, verbose=nivel_verbose, compute_cost=calcular_coste, display=mostrar_resultado, medir_tiempo=medir_rendimiento)
+# t_diff_1 = (time.time_ns()-t0)*1e-9
+# print("Tiempo de ejecucion mio (s): {}".format(t_diff_1))
 
 # t2 = time.time_ns()
-# probar_sklearn(data, labels, verbose=0)
+# probar_sklearn(data, labels, verbose=nivel_verbose)
 # t_diff_2 = (time.time_ns()-t2)*1e-9
 # print("Tiempo de ejecucion skl (s): {}".format(t_diff_2))
 

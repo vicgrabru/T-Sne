@@ -1,9 +1,8 @@
-#import sklearn.manifold as manif
-
 import numpy as np
 import matplotlib.pyplot as plt
 from mytsnelib import similarities
 import time
+
 
 
 def print_efficiency(t0_ns, t1_ns, *, n_iters=None, n_ms_digits=None):
@@ -27,9 +26,7 @@ def print_efficiency(t0_ns, t1_ns, *, n_iters=None, n_ms_digits=None):
     print("=================================================================")
 
 
-#================================================================================================================
 #===Gradiente====================================================================================================
-#================================================================================================================
 def gradient(P, Q, y, y_dist, caso="safe") -> np.ndarray:
     match caso:
         case "safe":
@@ -45,13 +42,13 @@ def __gradient_safe(P, Q, y, y_dist) -> np.ndarray:
     pq_diff = P - Q
     y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
 
-    aux = 1 / (1 + y_dist)
-    return 4 * (np.expand_dims(pq_diff, 2) * y_diff * np.expand_dims(aux,2)).sum(1)
+    aux = 1. / (1. + y_dist)
+    return 4. * np.sum(np.expand_dims(pq_diff, 2) * y_diff * np.expand_dims(aux,2), axis=1)
 def __gradient_forces(P, Q, y, y_dist) -> np.ndarray:
     y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
 
     # paso 1: obtener Z
-    dists = 1/(1+y_dist)
+    dists = 1./(1.+y_dist)
     np.fill_diagonal(dists, 0.)
     z = dists.sum()
 
@@ -99,11 +96,8 @@ def __gradient_forces_v2(P, Q, y, y_dist) -> np.ndarray:
 
     # paso 3: combinacion
     return 4*(np.sum(attractive, 1) - np.sum(repulsive, 1))
-#================================================================================================================
 
-#================================================================================================================
 #===Funcion de coste: Kullback-Leibler divergence================================================================
-#================================================================================================================
 def kl_divergence(high_dimension_p, low_dimension_q) -> float:
     """Computes the Kullback-Leibler divergence
     Parameters
@@ -123,45 +117,6 @@ def kl_divergence(high_dimension_p, low_dimension_q) -> float:
     result = np.multiply(high_dimension_p, aux)
 
     return np.sum(result)
-#================================================================================================================
-
-#================================================================================================================
-#===Trustworthiness==============================================================================================
-#================================================================================================================
-# devuelve valores en [0,1]. cuanto mas pequeño sea el valor, peor se conserva la estructura
-def trustworthiness(dist_original, k, embed=None, caso="safe", dist_embed=None) -> float:
-    if dist_embed is None:
-        if embed is None:
-            raise ValueError("You must provide either the embedding or the embedding distances")
-        else:
-            dist_embed = similarities.pairwise_euclidean_distance(embed, sqrt=True, inf_diag=True)
-    n = dist_original.shape[0]
-    indices_embed = np.argsort(dist_embed)
-    indices_vecinos_embed = indices_embed[:,:k]
-    indices_no_vecinos_embed = indices_embed[:,k:]
-    rankings_vecinos_original = similarities.get_neighbor_ranking_by_distance_fast(dist_original)
-    penalizacion = np.maximum(0., rankings_vecinos_original - k)
-    match caso:
-        case "safe":
-            sumatorio = 0
-            for i in range(0, n):
-                for j in indices_vecinos_embed[i]:
-                    sumatorio += penalizacion[i][j]
-            return 1-(2*sumatorio/(n*k*(2*n - 3*k - 1)))
-        case "fast_np_indices":
-            filas,_ = np.indices(indices_no_vecinos_embed.shape)
-            penalizacion[filas, indices_no_vecinos_embed] = 0.
-            return 1-(2*np.sum(penalizacion)/(n*k*(2*n - 3*k - 1)))
-        case "fast_np_fromfunction":
-            funcion = lambda i,j : 0 if j in indices_no_vecinos_embed[i] else rankings_vecinos_original[i][j]-k
-            penalizacion = np.fromfunction(np.vectorize(funcion), shape=rankings_vecinos_original.shape, dtype=int)
-            return 1-(2*np.sum(penalizacion)/(n*k*(2*n - 3*k - 1)))
-        case _:
-            raise ValueError("Only accepted cases are safe, fast_np_indices, and fast_np_fromfunction")
-
-    
-#================================================================================================================
-
 
 class TSne():
     """Class for the performance of the T-Sne method.
@@ -176,7 +131,7 @@ class TSne():
         self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,
                                 early_exaggeration, learning_rate, max_iter, momentum_params, seed, verbose, iters_check)
 
-        if n_neighbors==None:
+        if n_neighbors is None:
             n_neighbors = 3*perplexity + 1
         
 
@@ -190,10 +145,7 @@ class TSne():
         self.max_iter = max_iter
         self.init_embed = init_embed
         self.momentum_params = momentum_params
-        if early_exaggeration is None:
-            self.early_exaggeration = 1
-        else:
-            self.early_exaggeration = early_exaggeration
+        self.early_exaggeration = 1 if early_exaggeration is None else early_exaggeration
         self.n_neighbors = n_neighbors
         self.verbose = verbose
         self.iters_check = iters_check
@@ -203,13 +155,10 @@ class TSne():
         self.embed_history = []
         self.q_history = []
         self.cost_history = []
-        self.trust_history = []
         self.best_iter_cost = None
-        self.best_iter_trust = None
         self.fitting_done = False
         self.prev_embed_dist = None
         self.embed_dist_history = []
-        self.dist_original_clean = None
 
         #set the seed
         if seed is None:
@@ -222,7 +171,6 @@ class TSne():
         self.t_diff_dist_embed = []
         self.t_diff_q = []
         self.t_diff_grad = []
-
     def __input_validation(self,n_dimensions,perplexity,perplexity_tolerance,n_neighbors,metric,init_method,init_embed,
                            early_exaggeration,learning_rate,max_iter,momentum_params, seed, verbose, iters_check):
         accepted_methods = ["random", "precomputed"]
@@ -333,7 +281,6 @@ class TSne():
             if max_iter_valid:
                 if iters_check>max_iter:
                     raise ValueError("iters_check cannot be greater than max_iter")
-
     def __array_validation(self, input, *, embed:np.ndarray=None):
         
         if not hasattr(input, "__len__"):
@@ -355,16 +302,7 @@ class TSne():
             raise ValueError("The number of samples cannot be lower than the number of neighbors")
 
         return result
-
-    def __momentum(self,t) -> float:
-        if t>self.momentum_params[0]:
-            self.early_exaggeration=1
-            result = self.momentum_params[2]
-        else:
-            result = self.momentum_params[1]
-        return result
-
-    def __initial_embed(self, *, n_samples) -> np.ndarray:
+    def __rand_embed(self, *, n_samples) -> np.ndarray:
         """Returns an initial embedding following the given parameters.
 
         Parameters
@@ -388,7 +326,7 @@ class TSne():
         result = self.random_state.standard_normal(size=(n_samples, self.n_dimensions))
         return result
 
-    def fit(self, input, classes:np.ndarray=None, compute_cost=True, compute_trust=True, measure_efficiency=False) -> np.ndarray:
+    def fit(self, input, classes:np.ndarray=None, compute_cost=True, measure_efficiency=False) -> np.ndarray:
         """Fit the given data and perform the embedding
 
         Parameters
@@ -404,7 +342,7 @@ class TSne():
         if self.verbose>0:
             t0_g = time.time_ns()
         
-        self.learning_rate = max(self.learning_rate, np.floor([X.shape[0]/12])[0])
+        self.learning_rate = max(self.learning_rate, np.floor(len(X)/12))
 
         #====distancias_og=======================================================================================================================================
         if measure_efficiency:  # mediciones de tiempo
@@ -412,21 +350,19 @@ class TSne():
         dist_original = similarities.pairwise_euclidean_distance(input)
         if measure_efficiency:  # mediciones de tiempo
             self.t_diff_distancias_og = (time.time_ns()-t_0)*1e-9
-        if compute_trust:
-            dist_original_clean = np.sqrt(dist_original)
-            np.fill_diagonal(dist_original_clean, np.inf)
-            self.dist_original_clean = dist_original_clean
-        #========================================================================================================================================================
-
+        
         #====p===================================================================================================================================================
         if measure_efficiency:  # mediciones de tiempo
             t_0 = time.time_ns()
         p = similarities.joint_probabilities_gaussian(dist_original, self.perplexity, self.perplexity_tolerance)
         if measure_efficiency:  # mediciones de tiempo
             self.t_diff_p = (time.time_ns()-t_0)*1e-9
-        #========================================================================================================================================================
+        
 
-        self.__gradient_descent(self.max_iter, p, compute_cost, compute_trust, measure_efficiency)
+        if self.init_embed is None:
+            self.init_embed = self.__rand_embed(n_samples=len(input))
+
+        self.__gradient_descent(self.max_iter, p, compute_cost, measure_efficiency)
 
         if self.verbose>0:
             print_efficiency(t0_g, time.time_ns(), n_iters=self.max_iter, n_ms_digits=6)
@@ -444,24 +380,14 @@ class TSne():
                 self.best_iter_cost = -1
             else:
                 self.best_iter_cost = max(0, (aux-1)*self.iters_check)
-        if compute_trust:
-            aux = np.argmax(self.trust_history)
-            if aux==len(self.trust_history)-1:
-                self.best_iter_trust = -1
-            else:
-                self.best_iter_trust = max(0, (aux-1)*self.iters_check)
 
         
         if measure_efficiency:  # mediciones de tiempo
             self.__print_time_analytics()
 
         return result
-
-    def __gradient_descent(self, t, p, compute_cost=True, compute_trust=True, measure_efficiency=False):
-        if self.init_embed is None:
-            y = self.__initial_embed(n_samples=p.shape[0])
-        else:
-            y = self.init_embed
+    def __gradient_descent(self, t, p, compute_cost=True, measure_efficiency=False):
+        y = self.init_embed
         
         #====dist_embed==========================================================================================================================================
         if measure_efficiency:  # mediciones de tiempo
@@ -470,7 +396,6 @@ class TSne():
         if measure_efficiency:  # mediciones de tiempo
             aux = (time.time_ns()-t_0)*1e-9
             self.t_diff_dist_embed.append(aux); self.t_diff_dist_embed.append(aux)
-        #========================================================================================================================================================
         
         #====q===================================================================================================================================================
         if measure_efficiency:  # mediciones de tiempo
@@ -479,8 +404,7 @@ class TSne():
         if measure_efficiency:  # mediciones de tiempo
             aux = (time.time_ns()-t_0)*1e-9
             self.t_diff_q.append(aux); self.t_diff_q.append(aux)
-        #========================================================================================================================================================
-
+        
         self.embed_history.append(y); self.embed_history.append(y)
         self.prev_embed_dist = dist_embed
         self.embed_dist_history.append(dist_embed); self.embed_dist_history.append(dist_embed)
@@ -489,25 +413,29 @@ class TSne():
         if compute_cost:
             cost = kl_divergence(p, q)
             self.cost_history.append(cost)
-        if compute_trust:
-            trust = trustworthiness(self.dist_original_clean, self.n_neighbors, dist_embed=dist_embed)
-            self.trust_history.append(trust)
 
+        lr = self.learning_rate
+        early = self.early_exaggeration
+        momentum = self.momentum_params[1]
 
         for i in range(2,t):
             #====grad================================================================================================================================================
             if measure_efficiency:  # mediciones de tiempo
                 t_0 = time.time_ns()
             
-            grad = gradient(p, q*self.early_exaggeration, self.embed_history[-1], self.embed_dist_history[-1], caso="safe")
+            grad = gradient(p, q*early, y, dist_embed, caso="safe")
 
             if measure_efficiency:  # mediciones de tiempo
                 self.t_diff_grad.append((time.time_ns()-t_0)*1e-9)
-            #========================================================================================================================================================
-
+            
+            #====embed===============================================================================================================================================
             #y{i} = y{i-1} + learning_rate*gradiente + momentum(t) * (y{i-1} - y{i-2})
-            y = self.embed_history[-1] - self.learning_rate*grad + self.__momentum(i)*(self.embed_history[-1]-self.embed_history[-2])
+            y = self.embed_history[-1] - lr*grad + momentum*(self.embed_history[-1]-self.embed_history[-2])
 
+            #====momentum change=====================================================================================================================================
+            if i==self.momentum_params[0]:
+                early = 1
+                momentum = self.momentum_params[2]
 
             #====dist_embed==========================================================================================================================================
             if measure_efficiency:  # mediciones de tiempo
@@ -515,7 +443,6 @@ class TSne():
             dist_embed = similarities.pairwise_euclidean_distance(y)
             if measure_efficiency:  # mediciones de tiempo
                 self.t_diff_dist_embed.append((time.time_ns()-t_0)*1e-9)
-            #========================================================================================================================================================
             
             
             #====q===================================================================================================================================================
@@ -524,25 +451,20 @@ class TSne():
             q = similarities.joint_probabilities_student(dist_embed)
             if measure_efficiency:  # mediciones de tiempo
                 self.t_diff_q.append((time.time_ns()-t_0)*1e-9)
-            #========================================================================================================================================================
+            
             
             self.embed_history.append(y)
             self.prev_embed_dist = dist_embed
             self.embed_dist_history.append(dist_embed)
             self.q_history.append(q)
 
-            if compute_cost or compute_trust:
-                index_check = i%self.iters_check
-                if index_check==0 or i==t-1:
-                    if compute_cost:
-                        cost = kl_divergence(p, q)
-                        self.cost_history.append(cost)
-                    if compute_trust:
-                        trust = trustworthiness(self.dist_original_clean, self.n_neighbors, dist_embed)
-                        self.trust_history.append(trust)
+            if compute_cost:
+                if i%self.iters_check==0 or i==t-1:
+                    cost = kl_divergence(p, q)
+                    self.cost_history.append(cost)
                 
 
-    def display_embed(self, *, display_best_iter_cost=False, display_best_iter_trust=False, t:int=-1, title=None):
+    def display_embed(self, *, display_best_iter_cost=False, t:int=-1, title=None):
         """Displays the resulting embedding.
 
         Parameters
@@ -556,8 +478,6 @@ class TSne():
         assert self.fitting_done
         if display_best_iter_cost:
             t = self.best_iter_cost
-        elif display_best_iter_trust:
-            t = self.best_iter_trust
         elif t not in range(-1,self.max_iter):
             raise ValueError("Cannot show embedding for values of t that are not within the range [-1, {})=".format(self.max_iter))
         
@@ -587,13 +507,13 @@ class TSne():
                 y = embed_T[1]
 
                 if self.element_classes is not None:
-                    for i in range(0,x.shape[0]):
+                    for i in range(len(x)):
                         plt.plot(x[i],y[i],marker='o',linestyle='', markersize=5, label=labels[i])
                     handles, labels = plt.gca().get_legend_handles_labels()
                     by_label = dict(zip(labels, handles))
                     plt.legend(by_label.values(), by_label.keys(), draggable=True)
                 else:
-                    for i in range(0,x.shape[0]):
+                    for i in range(len(x)):
                         plt.plot(x[i],y[i],marker='o',linestyle='', markersize=8)
                 print("")
             case 1:
@@ -601,7 +521,7 @@ class TSne():
                 y = np.ones_like(x)
 
                 if self.element_classes is not None:
-                    for i in range(0,x.shape[0]):
+                    for i in range(len(x)):
                         plt.plot(x[i],y[i],marker='o',linestyle='', markersize=5, label=labels[i])
                     handles, labels = plt.gca().get_legend_handles_labels()
                     by_label = dict(zip(labels, handles))
@@ -618,31 +538,19 @@ class TSne():
         if title is None:
             if display_best_iter_cost:
                 title = "Best embedding for kl divergence, achieved at t={} out of {} iterations".format(t, self.max_iter)
-            elif display_best_iter_trust:
-                title = "Best embedding for trustworthiness, achieved at t={} out of {} iterations".format(t, self.max_iter)
             else:
                 title = "Embedding at t={} out of {} iterations".format(t, self.max_iter)
         plt.title(title)
         plt.show()
     
-    #================================================================================================================
     #===Devolver embeddings especificos==============================================================================
-    #================================================================================================================
     def get_final_embedding(self) -> np.ndarray:
         assert self.fitting_done
         return self.embed_history[-1]
-    
     def get_best_embedding_cost(self) -> np.ndarray:
         assert self.fitting_done
         return self.embed_history[self.best_iter_cost]
     
-    def get_best_embedding_trust(self) -> np.ndarray:
-        assert self.fitting_done
-        return self.embed_history[self.best_iter_cost]
-    #================================================================================================================
-    
-
-    #======================================================================================================================================
     #=============Analisis de eficiencia de cada metodo===================================================================================================
     def __print_time_analytics(self):
         print("======================================================================")
@@ -669,4 +577,4 @@ class TSne():
         return np.sum(time_list)/len(time_list)
     def __print_time_diff(self, t_diff, method):
         print("{}: {}".format(method, str(t_diff)))
-    #======================================================================================================================================
+    
