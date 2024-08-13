@@ -124,9 +124,9 @@ class TSne():
     """
 
 
-    def __init__(self, *, n_dimensions=2, perplexity=30, perplexity_tolerance=1e-10, n_neighbors = 10,
-                 metric='euclidean', init_method="random", init_embed=None, early_exaggeration=None,
-                 learning_rate=500, max_iter=1000, momentum_params=[250.0,0.5,0.8], seed=None, verbose=0, iters_check=50):
+    def __init__(self, *, n_dimensions=2, perplexity=30., perplexity_tolerance=1e-10, n_neighbors = 10,
+                 metric='euclidean', init_method="random", init_embed=None, early_exaggeration:float=None,
+                 learning_rate=500., max_iter=1000, momentum_params=[250.,0.5,0.8], seed=None, verbose=0, iters_check=50):
         #validacion de parametros
         self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,
                                 early_exaggeration, learning_rate, max_iter, momentum_params, seed, verbose, iters_check)
@@ -155,6 +155,7 @@ class TSne():
         self.embed_history = []
         self.q_history = []
         self.cost_history = []
+        self.cost_history_embed = []
         self.best_iter_cost = None
         self.fitting_done = False
         self.prev_embed_dist = None
@@ -188,12 +189,12 @@ class TSne():
                 raise ValueError("n_dimensions must be a positive number")
             elif n_dimensions>3:
                 print("**Warning: If you use more than 3 dimensions, you will not be able to display the embedding**")
-        if perplexity is not None: # perplexity: int
-            if not isinstance(perplexity, int):
-                raise ValueError("perplexity must be of int type")
+        if perplexity is not None: # perplexity: float
+            if not isinstance(perplexity, float):
+                raise ValueError("perplexity must be of float type")
             elif perplexity in invalid_numbers:
                 raise ValueError("perplexity must be finite and not NaN")
-            elif perplexity <1:
+            elif perplexity <=0.:
                 raise ValueError("perplexity must be a positive number")
         if perplexity_tolerance is not None: # perplexity_tolerance: float
             if not isinstance(perplexity_tolerance, float):
@@ -228,19 +229,19 @@ class TSne():
                     raise ValueError("init_embed cant have NaN or an infinite number")
             else:
                 raise ValueError("init_embed must be a ndarray")
-        if early_exaggeration is not None: # early_exaggeration: int
-            if not isinstance(early_exaggeration, int):
-                raise ValueError("early_exaggeration must be of int type")
+        if early_exaggeration is not None: # early_exaggeration: float
+            if not isinstance(early_exaggeration, float):
+                raise ValueError("early_exaggeration must be of float type")
             elif early_exaggeration in invalid_numbers:
                 raise ValueError("early_exaggeration must be finite and not NaN")
-            elif early_exaggeration <1:
+            elif early_exaggeration <=0.:
                 raise ValueError("early_exaggeration must be a positive number")
-        if learning_rate is not None: # learning_rate: int
-            if not isinstance(learning_rate, int):
-                raise ValueError("learning_rate must be of int type")
+        if learning_rate is not None: # learning_rate: float
+            if not isinstance(learning_rate, float):
+                raise ValueError("learning_rate must be of float type")
             elif learning_rate in invalid_numbers:
                 raise ValueError("learning_rate must be finite and not NaN")
-            elif learning_rate <1:
+            elif learning_rate <=0.:
                 raise ValueError("learning_rate must be a positive number")
         if max_iter is not None: # max_iter: int
             if not isinstance(max_iter, int):
@@ -255,14 +256,16 @@ class TSne():
             if not isinstance(momentum_params, np.ndarray):
                 if np.asarray(momentum_params).shape!=(3,):
                     raise ValueError("momentum_params must be a ndarray of shape (3,)")
-            elif np.where(momentum_params in invalid_numbers, momentum_params).count()>0:
-                        raise ValueError("init_embed cant have NaN or an infinite number")
+            elif momentum_params.shape!=(3,):
+                raise ValueError("momentum_params must be a ndarray of shape (3,)")
             elif momentum_params.dtype not in accepted_momentum_param_types:
                 raise ValueError("The elements of momentum_params must be float(at least float32)")
+            elif len(np.intersect1d(momentum_params, np.array(invalid_numbers)))>0:
+                raise ValueError("init_embed cant have NaN or an infinite number")
             elif np.min(momentum_params)<=0:
                 raise ValueError("All elements must be positive numbers")
             elif not (momentum_params[0]).is_integer():
-                raise ValueError("The time threshold cant be a decimal number")
+                raise ValueError("The time threshold must be a whole number")
         if seed is not None: # seed: int
             if not isinstance(seed, int):
                 raise ValueError("seed must be an integer")
@@ -342,7 +345,7 @@ class TSne():
         if self.verbose>0:
             t0_g = time.time_ns()
         
-        self.learning_rate = max(self.learning_rate, np.floor(len(X)/12))
+        self.learning_rate = max(self.learning_rate, np.floor(len(X)/12.))
 
         #====distancias_og=======================================================================================================================================
         if measure_efficiency:  # mediciones de tiempo
@@ -405,14 +408,15 @@ class TSne():
             aux = (time.time_ns()-t_0)*1e-9
             self.t_diff_q.append(aux); self.t_diff_q.append(aux)
         
-        self.embed_history.append(y); self.embed_history.append(y)
         self.prev_embed_dist = dist_embed
+        self.embed_history.append(y); self.embed_history.append(y)
         self.embed_dist_history.append(dist_embed); self.embed_dist_history.append(dist_embed)
         self.q_history.append(q); self.q_history.append(q)
 
         if compute_cost:
             cost = kl_divergence(p, q)
-            self.cost_history.append(cost)
+            self.cost_history.append(cost); self.cost_history.append(cost)
+            self.cost_history_embed.append(y); self.cost_history_embed.append(y)
 
         lr = self.learning_rate
         early = self.early_exaggeration
@@ -462,6 +466,7 @@ class TSne():
                 if i%self.iters_check==0 or i==t-1:
                     cost = kl_divergence(p, q)
                     self.cost_history.append(cost)
+                    self.cost_history_embed.append(y)
                 
 
     def display_embed(self, *, display_best_iter_cost=False, t:int=-1, title=None):

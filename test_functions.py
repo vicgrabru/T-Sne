@@ -25,47 +25,78 @@ labels = labels_full[index_start:index_start+include_n_samples]
 
 
 #======================================================#
+#---Parametros para entrenar el modelo-----------------#
 n_dimensions = 2
-perplexity = 50
+perplexity = 50.
 perplexity_tolerance = 1e-10
 n_neighbors = 10
 metric = "euclidean"
 init_method = "random"
 init_embed = None
-early_exaggeration = 4
-learning_rate = 200
+early_exaggeration = 4.
+learning_rate = 200.
 max_iter = 1000
-momentum_params = [250.0, 0.5, 0.8]
+momentum_params = [250., 0.5, 0.8]
 seed = 4
 iters_check = 50
-#------------------------------------------------------#
-calcular_coste=False
-calcular_trust=False
+#---Parametros para calculos extra---------------------#
+calcular_coste=True
+#---Cosas que mostrar por consola----------------------# 
 medir_rendimiento=False
+print_cost_history=True
+nivel_verbose=0
+#---Mostrar el embedding-------------------------------#
+mostrar_resultado = None # None para no mostrar, "last" para mostrar la ultima, "cost" para mostrar la que obtiene mejor coste
 #======================================================#
 
-def probar_mio(data, labels, *, verbose=1, display=None, title=None, compute_cost=False, medir_tiempo=False):
+def probar_mio(data, labels, *, title=None):
     model = functions.TSne(n_dimensions=n_dimensions,
                            perplexity=perplexity,
                            perplexity_tolerance=perplexity_tolerance,
                            n_neighbors=n_neighbors,
                            max_iter=max_iter,
-                           verbose=verbose,
+                           verbose=nivel_verbose,
                            seed=seed,
                            iters_check=iters_check)
-    data_embedded = model.fit(data,classes=labels, compute_cost=compute_cost, measure_efficiency=medir_tiempo)
-    if display is not None:
-        if display=="last":
-            model.display_embed(t=-1, title=title)
-        elif display=="cost":
-            model.display_embed(display_best_iter_cost=True, title=title)
+    data_embedded = model.fit(data,classes=labels, compute_cost=calcular_coste, measure_efficiency=medir_rendimiento)
+    
+    if mostrar_resultado is not None:
+        match mostrar_resultado:
+            case "last":
+                title = "Mostrando embedding final"
+                embed = np.copy(data_embedded)
+            case "cost":
+                indice = np.argmin(model.cost_history)
+                embed = model.cost_history_embed[indice]
+                if indice<len(model.cost_history)-1:
+                    title = "Iteración con mejor coste: {}/{}".format(max(0, model.iters_check*(indice-1)), max_iter)
+                else:
+                    title = "Iteración con mejor coste: {}".format(max_iter)
+            case _:
+                embed = np.copy(data_embedded)
+        ut.display_embed(embed, labels, title=title)
+    
+    if print_cost_history:
+        historia_coste = np.array(model.cost_history)
+        if len(historia_coste)>0:
+            print("Cost history:")
+            print(historia_coste.__str__())
+            for i in range(1, len(historia_coste)):
+                if historia_coste[i]>historia_coste[i-1]:
+                    print("--------------------------------------------------------------")
+                    print("El coste en el indice {} es mayor que el previo, indice {}".format(i, i-1))
+                    print("Coste con indice {}: {}".format(i-1, historia_coste[i-1]))
+                    print("Coste con indice {}: {}".format(i, historia_coste[i]))
+            print("--------------------------------------------------------------")
+            print("Tamaño del historial de costes: {}".format(len(historia_coste)))
+            print("Coste minimo, con indice {}: {}".format(np.argmin(historia_coste), np.min(historia_coste)))
 
-def probar_sklearn(data, labels, *, verbose=1, display=False, title=None):
+def probar_sklearn(data, labels, *, display=False, title=None):
     model = mnf.TSNE(n_components=n_dimensions,
                          learning_rate='auto',
                          init='random',
                          perplexity=perplexity,
-                         verbose=verbose)
+                         verbose=nivel_verbose)
     data_embedded = model.fit_transform(data)
 
     if display:
@@ -104,28 +135,15 @@ def probar_otra_cosa():
 
 
 
-# 0 para nada de informacion por consola
-# 1 para tiempo total de ejecucion
-# 2 para info extra
-nivel_verbose = 1
-
-
-
-
-
-mostrar_resultado = None # para no mostrar
-# mostrar_resultado = "last" # para mostrar la ultima iteracion
-# mostrar_resultado = "cost" # para mostrar la iteracion con mejor coste (calcular_coste debe estar en True)
-# mostrar_resultado = "trust" # para mostrar la iteracion con mejor trust (calcular_trust debe estar en True)
 
 
 # t0 = time.time_ns()
-probar_mio(data, labels, verbose=nivel_verbose, compute_cost=calcular_coste, display=mostrar_resultado, medir_tiempo=medir_rendimiento)
+probar_mio(data, labels)
 # t_diff_1 = (time.time_ns()-t0)*1e-9
 # print("Tiempo de ejecucion mio (s): {}".format(t_diff_1))
 
 # t2 = time.time_ns()
-# probar_sklearn(data, labels, verbose=nivel_verbose)
+# probar_sklearn(data, labels)
 # t_diff_2 = (time.time_ns()-t2)*1e-9
 # print("Tiempo de ejecucion skl (s): {}".format(t_diff_2))
 
