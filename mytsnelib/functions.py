@@ -119,23 +119,58 @@ def kl_divergence(high_dimension_p, low_dimension_q) -> float:
     return np.sum(result)
 
 class TSne():
-    """Class for the performance of the T-Sne method.
-    TODO escribir un tooltip en condiciones xd
+    """Class for performing the T-Sne embedding.
+    Parameters
+    ----------
+    n_dimensions : int, default=2
+        The number of dimensions in the embedding space.
+    perplexity : float, default=30.0
+        TODO: explicarlo
+    perplexity_tolerance: float, default=1e-10
+        TODO: explicarlo
+    n_neighbors : int, default=10
+        TODO: explicarlo
+    metric : str, default='euclidean'
+        The metric for the distance calculations
+    init_method : str, default="random"
+        TODO: explicarlo
+    init_embed : ndarray of shape (n_samples, n_components), default=None
+        TODO: explicarlo
+    early_exaggeration : float, default=None
+        TODO: explicarlo
+    learning_rate : float, default=500.
+        TODO: explicarlo
+    max_iter : int, default=1000
+        TODO: explicarlo
+    momentum_params : array-like of shape (3,), default=[250.,0.5,0.8]
+        TODO: explicarlo
+    seed : int, default=None
+        TODO: explicarlo
+    verbose : int, default=0
+        Verbosity level (all levels include all info from previous levels):
+            0 displays no info
+            1 displays total execution time and time / iteration
+            2 displays
+        TODO: explicarlo
+    iters_check : int, default=50
+        TODO: explicarlo
+
+    Attributes
+    ----------
+    embed_history
+
+    
     """
 
 
     def __init__(self, *, n_dimensions=2, perplexity=30., perplexity_tolerance=1e-10, n_neighbors = 10,
                  metric='euclidean', init_method="random", init_embed=None, early_exaggeration:float=None,
-                 learning_rate=500., max_iter=1000, momentum_params=[250.,0.5,0.8], seed=None, verbose=0, iters_check=50):
-        #validacion de parametros
-        self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,
-                                early_exaggeration, learning_rate, max_iter, momentum_params, seed, verbose, iters_check)
-
-        if n_neighbors is None:
-            n_neighbors = 3*perplexity + 1
+                 learning_rate=500., max_iter=1000, momentum_params=[250.,0.5,0.8], seed:int=None, verbose=0, iters_check=50):
         
+        #===validacion de parametros=================================================================================
+        self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,early_exaggeration, learning_rate, max_iter, momentum_params, seed, verbose, iters_check)
 
-        #inicializacion de la clase
+        #===inicializacion de la clase===============================================================================
         self.n_dimensions = n_dimensions
         self.perplexity = perplexity
         self.perplexity_tolerance = perplexity_tolerance
@@ -145,12 +180,13 @@ class TSne():
         self.max_iter = max_iter
         self.init_embed = init_embed
         self.momentum_params = momentum_params
-        self.early_exaggeration = 1 if early_exaggeration is None else early_exaggeration
-        self.n_neighbors = n_neighbors
+        self.early_exaggeration = 1. if early_exaggeration is None else early_exaggeration
+        self.n_neighbors = 3*perplexity + 1 if n_neighbors is None else n_neighbors
         self.verbose = verbose
         self.iters_check = iters_check
+        self.random_state = np.random.RandomState(int(time.time())) if seed is None else np.random.RandomState(seed)
 
-        #set parameters to use later
+        #===parametros auxiliares====================================================================================
         self.element_classes = None
         self.embed_history = []
         self.q_history = []
@@ -160,13 +196,8 @@ class TSne():
         self.fitting_done = False
         self.prev_embed_dist = None
         self.embed_dist_history = []
-
-        #set the seed
-        if seed is None:
-            seed = int(time.time())
-        self.random_state = np.random.RandomState(seed)
-
-        #set parameters for metrics
+        
+        #===parametros para las metricas de rendimiento==============================================================
         self.t_diff_distancias_og = None
         self.t_diff_p = None
         self.t_diff_dist_embed = []
@@ -175,11 +206,10 @@ class TSne():
     def __input_validation(self,n_dimensions,perplexity,perplexity_tolerance,n_neighbors,metric,init_method,init_embed,
                            early_exaggeration,learning_rate,max_iter,momentum_params, seed, verbose, iters_check):
         accepted_methods = ["random", "precomputed"]
-        accepted_metrics=["euclidean"]
+        accepted_metrics = ["euclidean"]
         accepted_momentum_param_types = [np.float64,np.float32]
-        invalid_numbers = [np.nan, np.inf]
-        accepted_verboses = range(0,3)
-        max_iter_valid = False
+        invalid_numbers = np.array([np.nan, np.inf])
+
         if n_dimensions is not None: # n_dimensions: int
             if not isinstance(n_dimensions, int):
                 raise ValueError("n_dimensions must be of int type")
@@ -193,8 +223,8 @@ class TSne():
             if not isinstance(perplexity, float):
                 raise ValueError("perplexity must be of float type")
             elif perplexity in invalid_numbers:
-                raise ValueError("perplexity must be finite and not NaN")
-            elif perplexity <=0.:
+                raise ValueError("perplexity cannot be infinite or NaN")
+            elif perplexity <= 0.:
                 raise ValueError("perplexity must be a positive number")
         if perplexity_tolerance is not None: # perplexity_tolerance: float
             if not isinstance(perplexity_tolerance, float):
@@ -225,7 +255,7 @@ class TSne():
             if isinstance(init_embed, np.ndarray):
                 if not isinstance(init_embed.ndtype, np.number):
                     raise ValueError("Data type of the initial embedding must be a number")
-                elif np.where(init_embed in invalid_numbers, init_embed).count()>0:
+                elif len(np.intersect1d(invalid_numbers, np.reshape(init_embed, [1,-1])))>0:
                     raise ValueError("init_embed cant have NaN or an infinite number")
             else:
                 raise ValueError("init_embed must be a ndarray")
@@ -250,19 +280,17 @@ class TSne():
                 raise ValueError("max_iter must be finite and not NaN")
             elif max_iter <1:
                 raise ValueError("max_iter must be a positive number")
-            else:
-                max_iter_valid = True
         if momentum_params is not None: # momentum_params: ndarray of shape (3,)
             if not isinstance(momentum_params, np.ndarray):
-                if np.asarray(momentum_params).shape!=(3,):
+                if np.array(momentum_params).shape!=(3,):
                     raise ValueError("momentum_params must be a ndarray of shape (3,)")
             elif momentum_params.shape!=(3,):
                 raise ValueError("momentum_params must be a ndarray of shape (3,)")
             elif momentum_params.dtype not in accepted_momentum_param_types:
                 raise ValueError("The elements of momentum_params must be float(at least float32)")
-            elif len(np.intersect1d(momentum_params, np.array(invalid_numbers)))>0:
+            elif len(np.intersect1d(momentum_params, invalid_numbers))>0:
                 raise ValueError("init_embed cant have NaN or an infinite number")
-            elif np.min(momentum_params)<=0:
+            elif np.min(momentum_params)<=0.:
                 raise ValueError("All elements must be positive numbers")
             elif not (momentum_params[0]).is_integer():
                 raise ValueError("The time threshold must be a whole number")
@@ -274,59 +302,52 @@ class TSne():
         if verbose is not None: # verbose: int
             if not isinstance(verbose, int):
                 raise ValueError("verbose must be an integer")
-            elif verbose not in accepted_verboses:
-                raise ValueError("verbose must be within the range [0,2)")
+            elif verbose<0:
+                raise ValueError("verbose must be a positive number")
         if iters_check is not None: #iters_check: int
             if not isinstance(iters_check, int):
                 raise ValueError("iters_check must be an integer")
             elif iters_check<1:
                 raise ValueError("iters_check must be at least 1")
-            if max_iter_valid:
-                if iters_check>max_iter:
-                    raise ValueError("iters_check cannot be greater than max_iter")
-    def __array_validation(self, input, *, embed:np.ndarray=None):
+            elif iters_check>max_iter:
+                raise ValueError("iters_check cannot be greater than max_iter")
+    def __fit_input_validation(self, input, *, embed:np.ndarray=None):
         
-        if not hasattr(input, "__len__"):
-            raise ValueError("The given input is not array-like")
-        
-        if not isinstance(input, np.ndarray):
+        if isinstance(input, np.ndarray):
+            result = input
+        elif isinstance(input, (tuple, list)):
             result = np.array(input)
         else:
-            result = input
-
-        if result.shape[0]<10:
-            raise ValueError("Not enough samples. Must be at least 10 samples.")
+            raise ValueError("The given input is not array-like")
         
+        if len(result)<10:
+            raise ValueError("Not enough samples. Must be at least 10 samples.")
         if embed is not None:
-            if input.shape[0] != embed.shape[0]:
+            if len(input) != len(embed):
                 raise ValueError("The input data must have the same number of samples as the given embedding")
-
-        if result.shape[0] <= self.n_neighbors:
+        if len(result) <= self.n_neighbors:
             raise ValueError("The number of samples cannot be lower than the number of neighbors")
-
         return result
-    def __rand_embed(self, *, n_samples) -> np.ndarray:
-        """Returns an initial embedding following the given parameters.
+    def __rand_embed(self, *, n_samples:int, n_dimensions:int) -> np.ndarray:
+        """Returns a random embedding following the given parameters.
 
         Parameters
         ----------
-        data: ndarray of shape (n_samples, n_features). Optional.
-            The data to fit in the embedding.
-        zeros: boolean. default=False.
-            If True, sets all values in the embedding to be 0.
-        entries: int. Optional.
+        n_samples: int.
             The number of samples to have in the embedding.
-            Only taken into account if the initiation method is set to random.
+        n_dimensions: int.
+            The number of dimentsions in the embedding.
         
         Returns
         ----------
         embed: ndarray of shape (n_samples, n_features).
-            The calculated embedding.
+            Random embedding that follows a standard distribution.
 
         """
         assert n_samples is not None
+        assert n_dimensions is not None
 
-        result = self.random_state.standard_normal(size=(n_samples, self.n_dimensions))
+        result = self.random_state.standard_normal(size=(n_samples, n_dimensions))
         return result
 
     def fit(self, input, classes:np.ndarray=None, compute_cost=True, measure_efficiency=False) -> np.ndarray:
@@ -340,7 +361,7 @@ class TSne():
             Array with the class that each element in X belongs to.
         """
 
-        X = self.__array_validation(input, embed=self.init_embed)
+        X = self.__fit_input_validation(input, embed=self.init_embed)
 
         if self.verbose>0:
             t0_g = time.time_ns()
@@ -363,7 +384,7 @@ class TSne():
         
 
         if self.init_embed is None:
-            self.init_embed = self.__rand_embed(n_samples=len(input))
+            self.init_embed = self.__rand_embed(n_samples=len(input), n_dimensions=self.n_dimensions)
 
         self.__gradient_descent(self.max_iter, p, compute_cost, measure_efficiency)
 

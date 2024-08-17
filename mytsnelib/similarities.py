@@ -218,7 +218,7 @@ def conditional_p(distances:np.ndarray, deviations:np.ndarray) -> np.ndarray:
 def perplexity_from_conditional_p(cond_p:np.ndarray) -> np.ndarray:
     """Compute the perplexity from the conditional p_{j|i} and p_{i|j}
     following the formula
-    Perp(P) = 2**(-sum( p_{j|i}*log_2(p_{i|j})))
+    Perp(P) = 2**(-sum( p_{j|i}*log_2(p_{j|i})))
     """
     perp = -np.sum(cond_p*np.log2(cond_p),1)
     return 2.**perp

@@ -33,20 +33,21 @@ n_neighbors = 10
 metric = "euclidean"
 init_method = "random"
 init_embed = None
-early_exaggeration = 4.
+early_exaggeration = 12.
 learning_rate = 200.
 max_iter = 1000
 momentum_params = [250., 0.5, 0.8]
 seed = 4
 iters_check = 50
 #---Parametros para calculos extra---------------------#
-calcular_coste=True
+calcular_coste=False
 #---Cosas que mostrar por consola----------------------# 
 medir_rendimiento=False
-print_cost_history=True
+print_cost_history=False
 nivel_verbose=0
 #---Mostrar el embedding-------------------------------#
-mostrar_resultado = None # None para no mostrar, "last" para mostrar la ultima, "cost" para mostrar la que obtiene mejor coste
+display_sklearn = True
+mostrar_resultado = "last" # None para no mostrar, "last" para mostrar la ultima, "cost" para mostrar la que obtiene mejor coste
 #======================================================#
 
 def probar_mio(data, labels, *, title=None):
@@ -138,12 +139,14 @@ def probar_otra_cosa():
 
 
 # t0 = time.time_ns()
-probar_mio(data, labels)
+#probar_mio(data, labels)
 # t_diff_1 = (time.time_ns()-t0)*1e-9
 # print("Tiempo de ejecucion mio (s): {}".format(t_diff_1))
 
+
+
 # t2 = time.time_ns()
-# probar_sklearn(data, labels)
+probar_sklearn(data, labels, display=display_sklearn)
 # t_diff_2 = (time.time_ns()-t2)*1e-9
 # print("Tiempo de ejecucion skl (s): {}".format(t_diff_2))
 
