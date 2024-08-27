@@ -163,12 +163,12 @@ class TSne():
     """
 
 
-    def __init__(self, *, n_dimensions=2, perplexity=30., perplexity_tolerance=1e-10, n_neighbors = 10,
+    def __init__(self, *, n_dimensions=2, perplexity=30., perplexity_tolerance=1e-10,
                  metric='euclidean', init_method="random", init_embed=None, early_exaggeration:float=None,
                  learning_rate=500., max_iter=1000, momentum_params=[250.,0.5,0.8], seed:int=None, verbose=0, iters_check=50):
         
         #===validacion de parametros=================================================================================
-        self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, n_neighbors, metric, init_method, init_embed,early_exaggeration, learning_rate, max_iter, momentum_params, seed, verbose, iters_check)
+        self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, metric, init_method, init_embed,early_exaggeration, learning_rate, max_iter, momentum_params, seed, verbose, iters_check)
 
         #===inicializacion de la clase===============================================================================
         self.n_dimensions = n_dimensions
@@ -181,7 +181,7 @@ class TSne():
         self.init_embed = init_embed
         self.momentum_params = momentum_params
         self.early_exaggeration = 1. if early_exaggeration is None else early_exaggeration
-        self.n_neighbors = 3*perplexity + 1 if n_neighbors is None else n_neighbors
+        self.n_neighbors = 3*perplexity + 1
         self.verbose = verbose
         self.iters_check = iters_check
         self.random_state = np.random.RandomState(int(time.time())) if seed is None else np.random.RandomState(seed)
@@ -203,7 +203,7 @@ class TSne():
         self.t_diff_dist_embed = []
         self.t_diff_q = []
         self.t_diff_grad = []
-    def __input_validation(self,n_dimensions,perplexity,perplexity_tolerance,n_neighbors,metric,init_method,init_embed,
+    def __input_validation(self,n_dimensions,perplexity,perplexity_tolerance,metric,init_method,init_embed,
                            early_exaggeration,learning_rate,max_iter,momentum_params, seed, verbose, iters_check):
         accepted_methods = ["random", "precomputed"]
         accepted_metrics = ["euclidean"]
@@ -233,13 +233,6 @@ class TSne():
                 raise ValueError("perplexity_tolerance must be finite and not NaN")
             elif perplexity_tolerance < 0:
                 raise ValueError("perplexity_tolerance must be a positive number or 0")
-        if n_neighbors is not None: # n_neighbors: int
-            if not isinstance(n_neighbors, int):
-                raise ValueError("n_neighbors must be of int type")
-            elif n_neighbors in invalid_numbers:
-                raise ValueError("n_neighbors must be finite and not NaN")
-            elif n_neighbors <0:
-                raise ValueError("n_neighbors must be at least 0")
         if metric is not None: # metric: str
             if not isinstance(metric, str):
                 raise ValueError("metric must be of str type")

@@ -29,7 +29,6 @@ labels = labels_full[index_start:index_start+include_n_samples]
 n_dimensions = 2
 perplexity = 50.
 perplexity_tolerance = 1e-10
-n_neighbors = 10
 metric = "euclidean"
 init_method = "random"
 init_embed = None
@@ -54,7 +53,6 @@ def probar_mio(data, labels, *, title=None):
     model = functions.TSne(n_dimensions=n_dimensions,
                            perplexity=perplexity,
                            perplexity_tolerance=perplexity_tolerance,
-                           n_neighbors=n_neighbors,
                            max_iter=max_iter,
                            verbose=nivel_verbose,
                            seed=seed,
@@ -94,10 +92,10 @@ def probar_mio(data, labels, *, title=None):
 
 def probar_sklearn(data, labels, *, display=False, title=None):
     model = mnf.TSNE(n_components=n_dimensions,
-                         learning_rate='auto',
-                         init='random',
-                         perplexity=perplexity,
-                         verbose=nivel_verbose)
+                     learning_rate='auto',
+                     init='random',
+                     perplexity=perplexity,
+                     verbose=nivel_verbose)
     data_embedded = model.fit_transform(data)
 
     if display:
@@ -139,14 +137,14 @@ def probar_otra_cosa():
 
 
 # t0 = time.time_ns()
-#probar_mio(data, labels)
+probar_mio(data, labels)
 # t_diff_1 = (time.time_ns()-t0)*1e-9
 # print("Tiempo de ejecucion mio (s): {}".format(t_diff_1))
 
 
 
 # t2 = time.time_ns()
-probar_sklearn(data, labels, display=display_sklearn)
+#probar_sklearn(data, labels, display=display_sklearn)
 # t_diff_2 = (time.time_ns()-t2)*1e-9
 # print("Tiempo de ejecucion skl (s): {}".format(t_diff_2))
 
