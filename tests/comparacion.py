@@ -1,6 +1,7 @@
 import numpy as np
 import mytsnelib.utils as ut
 
+
 #======================================================#
 #---Parametros para entrenar el modelo-----------------#
 n_dimensions = 2
@@ -90,17 +91,76 @@ def probar_pca(data, labels, *, display=False, title=None):
 #===Autoencoder==============================================================#
 def probar_autoencoder(data, labels, *, display=False, title=None):
     import matplotlib.pyplot as plt
-    import numpy as np
-    import pandas as pd
-    import tensorflow as tf
-    
+    #import pandas as pd
+    import tensorflow
+    import keras
 
-    from sklearn.metrics import accuracy_score, precision_score, recall_score
-    from sklearn.model_selection import train_test_split
+    # from sklearn.metrics import accuracy_score, precision_score, recall_score
+    # from sklearn.model_selection import train_test_split
     from keras import layers, losses
     from keras.api.datasets import fashion_mnist
     from keras.api.models import Model
+    class Autoencoder(Model):
+        def __init__(self, latent_dim, shape):
+            super(Autoencoder, self).__init__()
+            self.latent_dim = latent_dim
+            self.shape = shape
+            self.encoder = keras.Sequential([layers.Flatten(), layers.Dense(latent_dim, activation='relu'),])
+            self.decoder = keras.Sequential([layers.Dense(tensorflow.math.reduce_prod(shape).numpy(), activation='sigmoid'), layers.Reshape(shape)])
+
+        def call(self, x):
+            encoded = self.encoder(x)
+            decoded = self.decoder(encoded)
+            return decoded
     
+
+    
+
+    # threshold_index = np.floor_divide(6*len(data),7)
+    # x_train = data[:threshold_index]
+    # x_test = data[threshold_index:]
+    # labels_train = labels[:threshold_index]
+    # labels_test = labels[threshold_index:]
+
+    (x_train, _), (x_test, _) = fashion_mnist.load_data()
+
+    x_train = x_train.astype('float32') / 255.
+    x_test = x_test.astype('float32') / 255.
+
+    
+    
+    shape = x_test.shape[1:]
+    latent_dim = 64
+    autoenc = Autoencoder(64, x_test.shape[1:])
+
+    autoenc.compile(optimizer='adam', loss=losses.MeanSquaredError())
+    autoenc.fit(x_train, x_train,
+                epochs=10,
+                shuffle=True,
+                validation_data=(x_test, x_test))
+    
+    encoded_imgs = autoenc.encoder(x_test).numpy()
+    decoded_imgs = autoenc.decoder(encoded_imgs).numpy()
+    
+    n = 10
+    plt.figure(figsize=(20, 4))
+    for i in range(n):
+        # display original
+        ax = plt.subplot(2, n, i + 1)
+        plt.imshow(x_test[i])
+        plt.title("original")
+        plt.gray()
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+
+        # display reconstruction
+        ax = plt.subplot(2, n, i + 1 + n)
+        plt.imshow(decoded_imgs[i])
+        plt.title("reconstructed")
+        plt.gray()
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+    plt.show()
 
     # if display:
     #     ut.display_embed(data_embedded, labels, title=title)

@@ -1,7 +1,50 @@
 import csv
 import numpy as np
 import matplotlib.pyplot as plt
-def read_csv(route, *, has_labels=False, samples:int=None, index_start:int=None):
+
+import struct
+from array import array
+
+
+class MnistDataloader(object):
+    def __init__(self, training_images_filepath,training_labels_filepath,
+                 test_images_filepath, test_labels_filepath):
+        self.training_images_filepath = training_images_filepath
+        self.training_labels_filepath = training_labels_filepath
+        self.test_images_filepath = test_images_filepath
+        self.test_labels_filepath = test_labels_filepath
+    
+    def read_images_labels(self, images_filepath, labels_filepath):        
+        labels = []
+        with open(labels_filepath, 'rb') as file:
+            magic, size = struct.unpack(">II", file.read(8))
+            if magic != 2049:
+                raise ValueError('Magic number mismatch, expected 2049, got {}'.format(magic))
+            labels = array("B", file.read())        
+        
+        with open(images_filepath, 'rb') as file:
+            magic, size, rows, cols = struct.unpack(">IIII", file.read(16))
+            if magic != 2051:
+                raise ValueError('Magic number mismatch, expected 2051, got {}'.format(magic))
+            image_data = array("B", file.read())        
+        images = []
+        for i in range(size):
+            images.append([0] * rows * cols)
+        for i in range(size):
+            img = np.array(image_data[i * rows * cols:(i + 1) * rows * cols])
+            img = img.reshape(28, 28)
+            images[i][:] = img            
+        
+        return images, labels
+            
+    def load_data(self):
+        x_train, y_train = self.read_images_labels(self.training_images_filepath, self.training_labels_filepath)
+        x_test, y_test = self.read_images_labels(self.test_images_filepath, self.test_labels_filepath)
+        return (x_train, y_train),(x_test, y_test) 
+
+
+
+def read_csv(route, *, has_labels=False, index_start=0, samples=None):
     """Read a csv file in the given route.
 
     Parameters
@@ -11,6 +54,9 @@ def read_csv(route, *, has_labels=False, samples:int=None, index_start:int=None)
 
     has_labels: boolean. default=False.
         Wether or not the given csv has a labels column at the end.
+    
+    index_start: int. default=0.
+        Starting index of the entries to return
 
     Returns
     ---------
@@ -25,23 +71,27 @@ def read_csv(route, *, has_labels=False, samples:int=None, index_start:int=None)
         list_reader = list(reader)
         array_reader = np.asarray(list_reader)
 
-        start = 0 if index_start is None else start_index if samples is None else min(index_start, len(array_reader)-samples-1)
-        
-        n_entries = len(array_reader) if samples is None else min(samples, len(array_reader))
-        n_columns = array_reader.shape[1]
+        max_index = len(array_reader)-1
+        if samples is not None:
+            max_index -= samples
 
-        array_reader = array_reader[start:start+n_entries]
+        start = index_start % max_index
+        end = start + samples + 1
+
+        data = array_reader[start:end]
 
         if has_labels:
-            labels = array_reader.T[-1]
-            entries = array_reader[:,:n_columns-1]
+            labels = data.T[-1]
+            entries = data.T[:-1].T
             return entries, labels
         else:
-            return array_reader
-def display_embed(embedded_data, labels, *, title=None):
-    embed_T = embedded_data.T
-    x = embed_T[0]
-    y = embed_T[1]
+            return data
+
+
+
+def display_embed(embed, labels, *, title=None):
+    x = embed.T[0]
+    y = embed.T[1]
     for i in range(0,x.shape[0]):
         plt.plot(x[i],y[i],marker='o',linestyle='', markersize=5, label=labels[i])
     
