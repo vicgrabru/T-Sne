@@ -41,10 +41,7 @@ if print_tiempo:
 
 match caso_prueba:
     case "mio":
-        comp.probar_mio(data, labels, display=display_embed,
-                        caso="last", # "last" o None para la ultima iteracion, "cost" para solo el ultimo
-                        medir_rendimiento=False,
-                        print_cost_history=False)
+        comp.probar_mio(data, labels, display=display_embed)
         caso_testeo = "mio"
     case "sklearn":
         comp.probar_sklearn(data, labels, display=display_embed)
