@@ -1,7 +1,7 @@
 import csv
 import numpy as np
 import matplotlib.pyplot as plt
-def read_csv(route, has_labels=False):
+def read_csv(route, *, has_labels=False, samples:int=None, index_start:int=None):
     """Read a csv file in the given route.
 
     Parameters
@@ -24,15 +24,20 @@ def read_csv(route, has_labels=False):
         reader = csv.reader(csvfile, delimiter=',')
         list_reader = list(reader)
         array_reader = np.asarray(list_reader)
-        n_entries = array_reader.shape[0]
+
+        start = 0 if index_start is None else start_index if samples is None else min(index_start, len(array_reader)-samples-1)
+        
+        n_entries = len(array_reader) if samples is None else min(samples, len(array_reader))
         n_columns = array_reader.shape[1]
+
+        array_reader = array_reader[start:start+n_entries]
+
         if has_labels:
             labels = array_reader.T[-1]
-            entries = array_reader[:n_entries, :n_columns-1]
+            entries = array_reader[:,:n_columns-1]
             return entries, labels
         else:
-            entries = array_reader[:n_entries, :n_columns]
-            return entries
+            return array_reader
 def display_embed(embedded_data, labels, *, title=None):
     embed_T = embedded_data.T
     x = embed_T[0]

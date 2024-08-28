@@ -128,8 +128,6 @@ class TSne():
         TODO: explicarlo
     perplexity_tolerance: float, default=1e-10
         TODO: explicarlo
-    n_neighbors : int, default=10
-        TODO: explicarlo
     metric : str, default='euclidean'
         The metric for the distance calculations
     init_method : str, default="random"
