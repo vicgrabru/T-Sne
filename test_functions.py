@@ -9,34 +9,13 @@ def test_haversine():
 #=================================================================#
 n_samples = 300
 index_start = 0
-
 data, labels = ut.read_csv("data/digits.csv", has_labels=True, samples=n_samples, index_start=index_start)
 #=================================================================#
 
 
 #======================================================#
-#---Parametros para entrenar el modelo-----------------#
-n_dimensions = 2
-perplexity = 30.
-perplexity_tolerance = 1e-10
-metric = "euclidean"
-init_method = "random"
-init_embed = None
-early_exaggeration = 12.
-learning_rate = 200.
-max_iter = 5000
-momentum_params = [250., 0.5, 0.8]
-seed = 4
-iters_check = 50
-#---Parametros para calculos extra---------------------#
-calcular_coste=False
-#---Cosas que mostrar por consola----------------------# 
-medir_rendimiento=False
-print_cost_history=False
-nivel_verbose=0
 #---Mostrar el embedding-------------------------------#
 display_embed = True
-mostrar_resultado = "last" # None para no mostrar, "last" para mostrar la ultima, "cost" para mostrar la que obtiene mejor coste
 #======================================================#
 
 def probar_otra_cosa():
@@ -62,7 +41,10 @@ if print_tiempo:
 
 match caso_prueba:
     case "mio":
-        comp.probar_mio(data, labels)
+        comp.probar_mio(data, labels, display=display_embed,
+                        caso="last", # "last" o None para la ultima iteracion, "cost" para solo el ultimo
+                        medir_rendimiento=False,
+                        print_cost_history=False)
         caso_testeo = "mio"
     case "sklearn":
         comp.probar_sklearn(data, labels, display=display_embed)

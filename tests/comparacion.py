@@ -1,8 +1,5 @@
 import numpy as np
-
 import mytsnelib.utils as ut
-import time
-
 
 #======================================================#
 #---Parametros para entrenar el modelo-----------------#
@@ -18,19 +15,12 @@ max_iter = 5000
 momentum_params = [250., 0.5, 0.8]
 seed = 4
 iters_check = 50
-#---Parametros para calculos extra---------------------#
-calcular_coste=False
-#---Cosas que mostrar por consola----------------------# 
-medir_rendimiento=False
-print_cost_history=False
+#---Cosas que mostrar por consola----------------------#
 nivel_verbose=0
-#---Mostrar el embedding-------------------------------#
-display_embed = True
-mostrar_resultado = "last" # None para no mostrar, "last" para mostrar la ultima, "cost" para mostrar la que obtiene mejor coste
 #======================================================#
 
 #===Mio======================================================================#
-def probar_mio(data, labels, *, display=False, title=None, caso:str=None):
+def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False, display_best_cost=False, medir_rendimiento=False, print_cost_history=False):
     from mytsnelib import functions
     model = functions.TSne(n_dimensions=n_dimensions,
                            perplexity=perplexity,
@@ -42,17 +32,16 @@ def probar_mio(data, labels, *, display=False, title=None, caso:str=None):
     data_embedded = model.fit(data,classes=labels, compute_cost=calcular_coste, measure_efficiency=medir_rendimiento)
     
     if display:
-        match caso:
-            case "cost":
-                indice = np.argmin(model.cost_history)
-                embed = model.cost_history_embed[indice]
-                if indice<len(model.cost_history)-1:
-                    title = "Iteración con mejor coste: {}/{}".format(max(0, model.iters_check*(indice-1)), max_iter)
-                else:
-                    title = "Iteración con mejor coste: {}".format(max_iter)
-            case _:
-                title = "Mostrando embedding final"
-                embed = np.copy(data_embedded)
+        if calcular_coste and display_best_cost:
+            indice = np.argmin(model.cost_history)
+            embed = model.cost_history_embed[indice]
+            if indice<len(model.cost_history)-1:
+                title = "Iteración con mejor coste: {}/{}".format(max(0, model.iters_check*(indice-1)), max_iter)
+            else:
+                title = "Iteración con mejor coste: {}".format(max_iter)
+        else:
+            title = "Mostrando embedding final"
+            embed = np.copy(data_embedded)
         ut.display_embed(embed, labels, title=title)
     
     if print_cost_history:
