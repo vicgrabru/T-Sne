@@ -34,7 +34,7 @@ def read_mnist(training_data_route, training_labels_route, test_data_route, test
         return (data_train, labels_train),(data_test, labels_test) 
 
 
-def read_csv(route, *, has_labels=False, labels_in_first_column=False):
+def read_csv(route, *, labels_in_first_column=False):
     """Read a csv file in the given route.
 
     Parameters
@@ -60,20 +60,47 @@ def read_csv(route, *, has_labels=False, labels_in_first_column=False):
         reader = csv.reader(csvfile, delimiter=',')
         list_reader = list(reader)
         array_reader = np.asarray(list_reader)
-
-        
-
-        if has_labels:
-            if labels_in_first_column:
-                labels = array_reader.T[0]
-                entries = array_reader.T[1:].T
-            else:
-                labels = array_reader.T[-1]
-                entries = array_reader.T[:-1].T
-            return entries, labels
+        if labels_in_first_column:
+            labels = array_reader.T[0]
+            entries = array_reader.T[1:].T
         else:
-            return array_reader
+            labels = array_reader.T[-1]
+            entries = array_reader.T[:-1].T
+        return entries, labels
 
+def read_csv_multiple(routes, *, labels_in_first_column=False):
+    """Read a csv file in the given route.
+
+    Parameters
+    ----------
+    route: str.
+        The route of the csv file to read.
+
+    has_labels: boolean. default=False.
+        Wether or not the given csv has a labels column at the end.
+    
+    index_start: int. default=0.
+        Starting index of the entries to return
+
+    Returns
+    ---------
+    result: tuple of 2 elements or ndarray of shape (n_samples, n_features)
+        If has_labels is set to True, this is a tuple of 2 elements, where the first is
+        a ndarray of shape (n_samples, n_features) that contains the data in the csv, and a
+        ndarray of shape (1,n_samples) with the labels corresponding to each entry in the first ndarray.
+        Otherwise, it returns the first ndarray of shape (n_samples, n_features)
+    """
+    samples = None
+    labels = None
+    for route in routes:
+        entry, label = read_csv(route, labels_in_first_column=labels_in_first_column)
+        if samples is None:
+            samples = entry
+            labels = label
+        else:
+            samples = np.append(samples, entry, axis=0)
+            labels = np.append(labels, label, axis=0)
+    return np.asarray(samples), np.asarray(labels)
 
 
 def display_embed(embed, labels, *, title=None):

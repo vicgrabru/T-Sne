@@ -10,16 +10,8 @@ def test_haversine():
 n_samples = 300
 index_start = 0
 
-data_train_1, labels_train_1 = ut.read_csv("data/mnist_train_p1.csv", has_labels=True, labels_in_first_column=True)
-data_train_2, labels_train_2 = ut.read_csv("data/mnist_train_p2.csv", has_labels=True, labels_in_first_column=True)
-data_train_3, labels_train_3 = ut.read_csv("data/mnist_train_p3.csv", has_labels=True, labels_in_first_column=True)
-data_train_4, labels_train_4 = ut.read_csv("data/mnist_train_p4.csv", has_labels=True, labels_in_first_column=True)
-data_train_5, labels_train_5 = ut.read_csv("data/mnist_train_p5.csv", has_labels=True, labels_in_first_column=True)
-data_train_6, labels_train_6 = ut.read_csv("data/mnist_train_p6.csv", has_labels=True, labels_in_first_column=True)
-data_test, labels_test = ut.read_csv("data/mnist_test.csv", has_labels=True, labels_in_first_column=True)
-
-data_full = np.append(data_train_1, data_train_2, data_train_3, data_train_4, data_train_5, data_train_6, data_test, axis=0)
-labels_full = np.append(labels_train_1, labels_train_2, labels_train_3, labels_train_4, labels_train_5, labels_train_6, labels_test, axis=0)
+routes_data = ["data/mnist_train_p1.csv", "data/mnist_train_p2.csv", "data/mnist_train_p3.csv", "data/mnist_train_p4.csv", "data/mnist_train_p5.csv", "data/mnist_train_p6.csv", "data/mnist_test.csv"]
+data_full, labels_full = ut.read_csv_multiple(routes_data, labels_in_first_column=True)
 
 data = data_full[index_start:index_start+n_samples]
 labels = labels_full[index_start:index_start+n_samples]
