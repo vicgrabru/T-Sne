@@ -88,6 +88,7 @@ def pairwise_euclidean_distance(X, *, sqrt=False, inf_diag=False) -> np.ndarray:
     """
     check_nan_inf(X)
 
+
     X = np.array(X)
 
     result = np.sum((X[None, :] - X[:, None])**2, 2)

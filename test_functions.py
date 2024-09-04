@@ -11,7 +11,7 @@ n_samples = 300
 index_start = 0
 
 routes_data = ["data/mnist_train_p1.csv", "data/mnist_train_p2.csv", "data/mnist_train_p3.csv", "data/mnist_train_p4.csv", "data/mnist_train_p5.csv", "data/mnist_train_p6.csv", "data/mnist_test.csv"]
-data_full, labels_full = ut.read_csv_multiple(routes_data, labels_in_first_column=True)
+data_full, labels_full = ut.read_csv_multiple(routes_data, labels_in_first_column=True, num_type=np.int8,skip_start_row=True)
 
 data = data_full[index_start:index_start+n_samples]
 labels = labels_full[index_start:index_start+n_samples]
@@ -56,7 +56,7 @@ display_embed = True
 import tests.comparacion as comp
 
 #---Parametros ejecucion------------------------------------------#
-caso_prueba = "dims"
+caso_prueba = "mio"
 print_tiempo = False
 
 

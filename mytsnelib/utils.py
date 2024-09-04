@@ -5,8 +5,6 @@ import matplotlib.pyplot as plt
 import struct
 from array import array
 
-
-
 def _read_mnist(data_route, labels_route):
         labels = []
         with open(labels_route, 'rb') as file:
@@ -34,7 +32,7 @@ def read_mnist(training_data_route, training_labels_route, test_data_route, test
         return (data_train, labels_train),(data_test, labels_test) 
 
 
-def read_csv(route, *, labels_in_first_column=False):
+def read_csv(route, *, labels_in_first_column=False, num_type=np.int8, skip_start_row=False):
     """Read a csv file in the given route.
 
     Parameters
@@ -57,9 +55,8 @@ def read_csv(route, *, labels_in_first_column=False):
         Otherwise, it returns the first ndarray of shape (n_samples, n_features)
     """
     with open(route, newline='') as csvfile:
-        reader = csv.reader(csvfile, delimiter=',')
-        list_reader = list(reader)
-        array_reader = np.asarray(list_reader)
+        list_reader = list(csv.reader(csvfile, delimiter=','))
+        array_reader = np.asarray(list_reader[1:], dtype=num_type) if skip_start_row else np.asarray(list_reader, dtype=num_type)
         if labels_in_first_column:
             labels = array_reader.T[0]
             entries = array_reader.T[1:].T
@@ -68,7 +65,7 @@ def read_csv(route, *, labels_in_first_column=False):
             entries = array_reader.T[:-1].T
         return entries, labels
 
-def read_csv_multiple(routes, *, labels_in_first_column=False):
+def read_csv_multiple(routes, *, labels_in_first_column=False, num_type=np.int8, skip_start_row=False):
     """Read a csv file in the given route.
 
     Parameters
@@ -93,7 +90,7 @@ def read_csv_multiple(routes, *, labels_in_first_column=False):
     samples = None
     labels = None
     for route in routes:
-        entry, label = read_csv(route, labels_in_first_column=labels_in_first_column)
+        entry, label = read_csv(route, labels_in_first_column=labels_in_first_column, num_type=num_type,skip_start_row=skip_start_row)
         if samples is None:
             samples = entry
             labels = label
