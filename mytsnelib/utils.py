@@ -6,45 +6,35 @@ import struct
 from array import array
 
 
-class MnistDataloader(object):
-    def __init__(self, training_images_filepath,training_labels_filepath,
-                 test_images_filepath, test_labels_filepath):
-        self.training_images_filepath = training_images_filepath
-        self.training_labels_filepath = training_labels_filepath
-        self.test_images_filepath = test_images_filepath
-        self.test_labels_filepath = test_labels_filepath
-    
-    def read_images_labels(self, images_filepath, labels_filepath):        
+
+def _read_mnist(data_route, labels_route):
         labels = []
-        with open(labels_filepath, 'rb') as file:
+        with open(labels_route, 'rb') as file:
             magic, size = struct.unpack(">II", file.read(8))
             if magic != 2049:
                 raise ValueError('Magic number mismatch, expected 2049, got {}'.format(magic))
-            labels = array("B", file.read())        
+            labels = array("B", file.read())
         
-        with open(images_filepath, 'rb') as file:
+        with open(data_route, 'rb') as file:
             magic, size, rows, cols = struct.unpack(">IIII", file.read(16))
             if magic != 2051:
                 raise ValueError('Magic number mismatch, expected 2051, got {}'.format(magic))
-            image_data = array("B", file.read())        
+            image_data = array("B", file.read())
         images = []
         for i in range(size):
             images.append([0] * rows * cols)
         for i in range(size):
             img = np.array(image_data[i * rows * cols:(i + 1) * rows * cols])
             img = img.reshape(28, 28)
-            images[i][:] = img            
-        
-        return images, labels
-            
-    def load_data(self):
-        x_train, y_train = self.read_images_labels(self.training_images_filepath, self.training_labels_filepath)
-        x_test, y_test = self.read_images_labels(self.test_images_filepath, self.test_labels_filepath)
-        return (x_train, y_train),(x_test, y_test) 
+            images[i][:] = img
+        return np.asarray(images, dtype=np.int8), np.asarray(labels, dtype=np.int8)
+def read_mnist(training_data_route, training_labels_route, test_data_route, test_labels_route, dtype=np.int8):
+        data_train, labels_train = _read_mnist(training_data_route, training_labels_route, type=type)
+        data_test, labels_test = _read_mnist(test_data_route, test_labels_route)
+        return (data_train, labels_train),(data_test, labels_test) 
 
 
-
-def read_csv(route, *, has_labels=False, index_start=0, samples=None):
+def read_csv(route, *, has_labels=False, labels_in_first_column=False):
     """Read a csv file in the given route.
 
     Parameters
@@ -71,21 +61,18 @@ def read_csv(route, *, has_labels=False, index_start=0, samples=None):
         list_reader = list(reader)
         array_reader = np.asarray(list_reader)
 
-        max_index = len(array_reader)-1
-        if samples is not None:
-            max_index -= samples
-
-        start = index_start % max_index
-        end = start + samples + 1
-
-        data = array_reader[start:end]
+        
 
         if has_labels:
-            labels = data.T[-1]
-            entries = data.T[:-1].T
+            if labels_in_first_column:
+                labels = array_reader.T[0]
+                entries = array_reader.T[1:].T
+            else:
+                labels = array_reader.T[-1]
+                entries = array_reader.T[:-1].T
             return entries, labels
         else:
-            return data
+            return array_reader
 
 
 

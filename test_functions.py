@@ -1,7 +1,7 @@
 import numpy as np
 import mytsnelib.utils as ut
 import time
-from os.path  import join
+from os.path import join
 
 def test_haversine():
     assert True
@@ -9,21 +9,26 @@ def test_haversine():
 #=================================================================#
 n_samples = 300
 index_start = 0
-data, labels = ut.read_csv("data/digits.csv", has_labels=True, samples=n_samples, index_start=index_start)
-input_path = 'data\MNIST'
-training_images_filepath = join(input_path, 'train-images-idx3-ubyte/train-images-idx3-ubyte')
-training_labels_filepath = join(input_path, 'train-labels-idx1-ubyte/train-labels-idx1-ubyte')
-test_images_filepath = join(input_path, 't10k-images-idx3-ubyte/t10k-images-idx3-ubyte')
-test_labels_filepath = join(input_path, 't10k-labels-idx1-ubyte/t10k-labels-idx1-ubyte')
 
-mnist_dataloader = ut.MnistDataloader(training_images_filepath, training_labels_filepath, test_images_filepath, test_labels_filepath)
-(data_train, labels_train), (data_test, labels_test) = mnist_dataloader.load_data()
+data_train, labels_train = ut.read_csv("data/mnist_train.csv", has_labels=True, labels_in_first_column=True)
+data_test, labels_test = ut.read_csv("data/mnist_test.csv", has_labels=True, labels_in_first_column=True)
+
+data_full = np.append(data_train, data_test, axis=0)
+labels_full = np.append(labels_train, labels_test, axis=0)
+
+data = data_full[index_start:index_start+n_samples]
+labels = labels_full[index_start:index_start+n_samples]
 #=================================================================#
 
 
 
 prueba_algoritmo = True
 
+def test_data_dims(input:np.ndarray):
+    print("data.ndim: {}".format(input.ndim))
+    print("Data shape: {}".format(input.shape))
+    input2 = np.ravel(input)
+    print("data.flatten.shape: {}".format(input2.shape))
 
 
 def probar_otra_cosa():
@@ -54,7 +59,7 @@ display_embed = True
 import tests.comparacion as comp
 
 #---Parametros ejecucion------------------------------------------#
-caso_prueba = "mio"
+caso_prueba = "dims"
 print_tiempo = False
 
 
@@ -65,12 +70,15 @@ if print_tiempo:
 match caso_prueba:
     case "mio":
         comp.probar_mio(data, labels, display=display_embed)
+        # comp.probar_mio(data_train, labels_train, display=display_embed)
     case "skl":
         comp.probar_sklearn(data, labels, display=display_embed)
     case "PCA":
         comp.probar_pca(data,labels, display=display_embed)
     case "autoencoders":
         comp.probar_autoencoder(data, labels, display=display_embed)
+    case "dims":
+        test_data_dims(data)
     case _:
         probar_otra_cosa()
 

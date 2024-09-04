@@ -303,7 +303,6 @@ class TSne():
             elif iters_check>max_iter:
                 raise ValueError("iters_check cannot be greater than max_iter")
     def __fit_input_validation(self, input, *, embed:np.ndarray=None):
-        
         if isinstance(input, np.ndarray):
             result = input
         elif isinstance(input, (tuple, list)):
@@ -318,6 +317,12 @@ class TSne():
                 raise ValueError("The input data must have the same number of samples as the given embedding")
         if len(result) <= self.n_neighbors:
             raise ValueError("The number of samples cannot be lower than the number of neighbors")
+        
+        if result.ndim>2:
+            new_result = []
+            for i in range(len(result)):
+                new_result.append(result[i].flatten())
+            return np.asarray(new_result)
         return result
     def __rand_embed(self, *, n_samples:int, n_dimensions:int) -> np.ndarray:
         """Returns a random embedding following the given parameters.
@@ -352,6 +357,8 @@ class TSne():
             Array with the class that each element in X belongs to.
         """
 
+        
+        
         X = self.__fit_input_validation(input, embed=self.init_embed)
 
         if self.verbose>0:
@@ -362,7 +369,7 @@ class TSne():
         #====distancias_og=======================================================================================================================================
         if measure_efficiency:  # mediciones de tiempo
             t_0 = time.time_ns()
-        dist_original = similarities.pairwise_euclidean_distance(input)
+        dist_original = similarities.pairwise_euclidean_distance(X)
         if measure_efficiency:  # mediciones de tiempo
             self.t_diff_distancias_og = (time.time_ns()-t_0)*1e-9
         
@@ -375,7 +382,7 @@ class TSne():
         
 
         if self.init_embed is None:
-            self.init_embed = self.__rand_embed(n_samples=len(input), n_dimensions=self.n_dimensions)
+            self.init_embed = self.__rand_embed(n_samples=len(X), n_dimensions=self.n_dimensions)
 
         self.__gradient_descent(self.max_iter, p, compute_cost, measure_efficiency)
 
