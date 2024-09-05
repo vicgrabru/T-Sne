@@ -11,7 +11,7 @@ metric = "euclidean"
 init_method = "random"
 init_embed = None
 early_exaggeration = 12.
-learning_rate = 200.
+lr = 200.
 max_iter = 5000
 momentum_params = [250., 0.5, 0.8]
 seed = 4
@@ -24,12 +24,15 @@ nivel_verbose=0
 def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False, display_best_cost=False, medir_rendimiento=False, print_cost_history=False):
     from mytsnelib import functions
     model = functions.TSne(n_dimensions=n_dimensions,
-                           perplexity=perplexity,
-                           perplexity_tolerance=perplexity_tolerance,
-                           max_iter=max_iter,
-                           verbose=nivel_verbose,
-                           seed=seed,
-                           iters_check=iters_check)
+                        perplexity=perplexity,
+                        perplexity_tolerance=perplexity_tolerance,
+                        early_exaggeration=early_exaggeration,
+                        learning_rate=lr,
+                        max_iter=max_iter,
+                        momentum_params=momentum_params,
+                        seed=seed,
+                        verbose=nivel_verbose,
+                        iters_check=iters_check)
     data_embedded = model.fit(data,classes=labels, compute_cost=calcular_coste, measure_efficiency=medir_rendimiento)
     
     if display:
@@ -89,79 +92,30 @@ def probar_pca(data, labels, *, display=False, title=None):
         ut.display_embed(data_embedded, labels, title=title)
 
 #===Autoencoder==============================================================#
-def probar_autoencoder(data, labels, *, display=False, title=None):
-    import matplotlib.pyplot as plt
-    #import pandas as pd
-    import tensorflow
-    import keras
-
-    # from sklearn.metrics import accuracy_score, precision_score, recall_score
-    # from sklearn.model_selection import train_test_split
-    from keras import layers, losses
-    from keras.api.datasets import fashion_mnist
+def probar_autoencoder(data, labels, *, test_data, test_labels, display=False, title=None):
+    from keras.api.layers import Dense, Input
+    from keras.api.optimizers import SGD
     from keras.api.models import Model
-    class Autoencoder(Model):
-        def __init__(self, latent_dim, shape):
-            super(Autoencoder, self).__init__()
-            self.latent_dim = latent_dim
-            self.shape = shape
-            self.encoder = keras.Sequential([layers.Flatten(), layers.Dense(latent_dim, activation='relu'),])
-            self.decoder = keras.Sequential([layers.Dense(tensorflow.math.reduce_prod(shape).numpy(), activation='sigmoid'), layers.Reshape(shape)])
 
-        def call(self, x):
-            encoded = self.encoder(x)
-            decoded = self.decoder(encoded)
-            return decoded
+    dims_input = data.shape[1]
+    capa_input = Input(shape=(dims_input,))
+    encoder = Dense(300, activation='tanh')(capa_input)
+    encoder = Dense(50, activation='relu')(encoder)
+    encoder = Dense(n_dimensions, activation='relu')(encoder)
+    decoder = Dense(50, activation='tanh')(encoder)
+    decoder = Dense(300, activation='relu')(decoder)
+    decoder = Dense(784, activation='relu')(decoder)
+
+    autoencoder = Model(inputs=capa_input, outputs=decoder)
+    sgd = SGD(learning_rate=lr/10000)
+    autoencoder.compile(optimizer='sgd', loss='mse')
+    # autoencoder.fit(data, data, epochs=max_iter, batch_size=32, shuffle=False, validation_data=(test_data, test_data))
     
-
+    print("======================================")
+    print("len(autoencoder._layers): {}".format(len(autoencoder._layers)))
+    print("len()")
+    print("======================================")
     
-
-    # threshold_index = np.floor_divide(6*len(data),7)
-    # x_train = data[:threshold_index]
-    # x_test = data[threshold_index:]
-    # labels_train = labels[:threshold_index]
-    # labels_test = labels[threshold_index:]
-
-    (x_train, _), (x_test, _) = fashion_mnist.load_data()
-
-    x_train = x_train.astype('float32') / 255.
-    x_test = x_test.astype('float32') / 255.
-
-    
-    
-    shape = x_test.shape[1:]
-    latent_dim = 64
-    autoenc = Autoencoder(64, x_test.shape[1:])
-
-    autoenc.compile(optimizer='adam', loss=losses.MeanSquaredError())
-    autoenc.fit(x_train, x_train,
-                epochs=10,
-                shuffle=True,
-                validation_data=(x_test, x_test))
-    
-    encoded_imgs = autoenc.encoder(x_test).numpy()
-    decoded_imgs = autoenc.decoder(encoded_imgs).numpy()
-    
-    n = 10
-    plt.figure(figsize=(20, 4))
-    for i in range(n):
-        # display original
-        ax = plt.subplot(2, n, i + 1)
-        plt.imshow(x_test[i])
-        plt.title("original")
-        plt.gray()
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-
-        # display reconstruction
-        ax = plt.subplot(2, n, i + 1 + n)
-        plt.imshow(decoded_imgs[i])
-        plt.title("reconstructed")
-        plt.gray()
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-    plt.show()
-
     # if display:
     #     ut.display_embed(data_embedded, labels, title=title)
 

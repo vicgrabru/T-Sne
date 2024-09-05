@@ -1,7 +1,7 @@
 import numpy as np
 import mytsnelib.utils as ut
 import time
-from os.path import join
+# from os.path import join
 
 def test_haversine():
     assert True
@@ -11,10 +11,22 @@ n_samples = 300
 index_start = 0
 
 routes_data = ["data/mnist_train_p1.csv", "data/mnist_train_p2.csv", "data/mnist_train_p3.csv", "data/mnist_train_p4.csv", "data/mnist_train_p5.csv", "data/mnist_train_p6.csv", "data/mnist_test.csv"]
-data_full, labels_full = ut.read_csv_multiple(routes_data, labels_in_first_column=True, num_type=np.int8,skip_start_row=True)
+routes_train = ["data/mnist_train_p1.csv", "data/mnist_train_p2.csv", "data/mnist_train_p3.csv", "data/mnist_train_p4.csv", "data/mnist_train_p5.csv", "data/mnist_train_p6.csv"]
 
-data = data_full[index_start:index_start+n_samples]
-labels = labels_full[index_start:index_start+n_samples]
+# data_full, labels_full = ut.read_csv(routes_data, labels_in_first_column=True, num_type=np.int8, skip_start_row=True)
+data_full, labels_full = ut.read_csv(routes_train, labels_in_first_column=True, num_type=np.int8, skip_start_row=True)
+data_test, labels_test = ut.read_csv("data/mnist_test.csv", labels_in_first_column=True, num_type=np.int8, skip_start_row=True)
+
+# data_full, labels_full = ut.read_csv("data/mnist_train_p1.csv", labels_in_first_column=True, num_type=np.int8, skip_start_row=True)
+
+random_indexes = np.random.randint(0, len(data_full), size=n_samples)
+
+# data = data_full[index_start:index_start+n_samples]
+# labels = labels_full[index_start:index_start+n_samples]
+
+data = data_full[random_indexes]
+labels = labels_full[random_indexes]
+
 #=================================================================#
 
 
@@ -50,14 +62,14 @@ def probar_otra_cosa():
 
 #======================================================#
 #---Mostrar el embedding-------------------------------#
-display_embed = True
+display_embed = False
 #======================================================#
 
 import tests.comparacion as comp
 
 #---Parametros ejecucion------------------------------------------#
-caso_prueba = "mio"
-print_tiempo = False
+caso_prueba = "autoencoders"
+print_tiempo = True
 
 
 
@@ -67,13 +79,16 @@ if print_tiempo:
 match caso_prueba:
     case "mio":
         comp.probar_mio(data, labels, display=display_embed)
-        # comp.probar_mio(data_train, labels_train, display=display_embed)
+        # comp.probar_mio(data_full, labels_full, display=display_embed)
     case "skl":
-        comp.probar_sklearn(data, labels, display=display_embed)
+        # comp.probar_sklearn(data, labels, display=display_embed)
+        comp.probar_sklearn(data_full, labels_full, display=display_embed)
     case "PCA":
-        comp.probar_pca(data,labels, display=display_embed)
+        # comp.probar_pca(data,labels, display=display_embed)
+        comp.probar_pca(data_full,labels_full, display=display_embed)
     case "autoencoders":
-        comp.probar_autoencoder(data, labels, display=display_embed)
+        #comp.probar_autoencoder(data, labels, test_labels=labels_test, display=display_embed, display=display_embed)
+        comp.probar_autoencoder(data_full, labels_full, test_data=data_test, test_labels=labels_test, display=display_embed)
     case "dims":
         test_data_dims(data)
     case _:
