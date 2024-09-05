@@ -12,7 +12,7 @@ init_method = "random"
 init_embed = None
 early_exaggeration = 12.
 lr = 200.
-max_iter = 5000
+max_iter = 10
 momentum_params = [250., 0.5, 0.8]
 seed = 4
 iters_check = 50
@@ -92,32 +92,41 @@ def probar_pca(data, labels, *, display=False, title=None):
         ut.display_embed(data_embedded, labels, title=title)
 
 #===Autoencoder==============================================================#
-def probar_autoencoder(data, labels, *, test_data, test_labels, display=False, title=None):
-    from keras.api.layers import Dense, Input
-    from keras.api.optimizers import SGD
+def probar_autoencoder(train_data, test_data, test_labels, *, display=False, title=None, display_amount=-1):
+    import tensorflow as tf
+    from keras.api import Sequential
+    from keras.api.losses import MeanSquaredError
+    from keras.api.layers import Dense, Flatten, Reshape
     from keras.api.models import Model
 
-    dims_input = data.shape[1]
-    capa_input = Input(shape=(dims_input,))
-    encoder = Dense(300, activation='tanh')(capa_input)
-    encoder = Dense(50, activation='relu')(encoder)
-    encoder = Dense(n_dimensions, activation='relu')(encoder)
-    decoder = Dense(50, activation='tanh')(encoder)
-    decoder = Dense(300, activation='relu')(decoder)
-    decoder = Dense(784, activation='relu')(decoder)
+    class Autoencoder(Model):
+        def __init__(self, latent_dim, shape):
+            super(Autoencoder, self).__init__()
+            self.latent_dim = latent_dim
+            self.shape = shape
+            self.encoder = Sequential([Flatten(), Dense(latent_dim, activation='relu'),])
+            self.decoder = Sequential([Dense(tf.math.reduce_prod(shape).numpy(), activation='sigmoid'), Reshape(shape)])
+        def call(self, x):
+            encoded = self.encoder(x)
+            decoded = self.decoder(encoded)
+            return decoded
 
-    autoencoder = Model(inputs=capa_input, outputs=decoder)
-    sgd = SGD(learning_rate=lr/10000)
-    autoencoder.compile(optimizer='sgd', loss='mse')
-    # autoencoder.fit(data, data, epochs=max_iter, batch_size=32, shuffle=False, validation_data=(test_data, test_data))
-    
-    print("======================================")
-    print("len(autoencoder._layers): {}".format(len(autoencoder._layers)))
-    print("len()")
-    print("======================================")
-    
-    # if display:
-    #     ut.display_embed(data_embedded, labels, title=title)
+    shape = test_data.shape[1:]
+    autoencoder = Autoencoder(n_dimensions, shape)
+
+    autoencoder.compile(optimizer='adam', loss=MeanSquaredError())
+    autoencoder.fit(train_data, train_data, epochs=max_iter, shuffle=True, validation_data=(test_data, test_data), verbose=nivel_verbose)
+
+    data_embedded = autoencoder.encoder(test_data).numpy()
+
+    if display:
+        if display_amount>0:
+            rand_indices = np.random.randint(low=0, high=len(data_embedded), size=display_amount)
+            display_data = data_embedded[rand_indices]
+            display_labels = test_labels[rand_indices]
+            ut.display_embed(display_data, display_labels, title=title)
+        else:
+            ut.display_embed(data_embedded, test_labels, title=title)
 
 
 #=======================================================================================================#

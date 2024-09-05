@@ -100,6 +100,7 @@ def display_embed(embed, labels, *, title=None):
     
 
     handles, labels = plt.gca().get_legend_handles_labels()
+    labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0]))
     by_label = dict(zip(labels, handles))
     plt.legend(by_label.values(), by_label.keys(), draggable=True)
     if title is not None:
