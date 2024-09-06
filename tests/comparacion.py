@@ -11,9 +11,11 @@ metric = "euclidean"
 init_method = "random"
 init_embed = None
 early_exaggeration = 12.
-lr = 200.
-max_iter = 10
-momentum_params = [250., 0.5, 0.8]
+# lr = 12.
+lr = "auto"
+max_iter = 10000
+momentum_params = [250, 0.5, 0.8]
+# momentum_params = [np.floor(max_iter/4), 0.5, 0.8]
 seed = 4
 iters_check = 50
 #---Cosas que mostrar por consola----------------------#
@@ -51,17 +53,18 @@ def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False,
     if print_cost_history:
         historia_coste = np.array(model.cost_history)
         if len(historia_coste)>0:
-            print("Cost history:")
-            print(historia_coste.__str__())
-            for i in range(1, len(historia_coste)):
-                if historia_coste[i]>historia_coste[i-1]:
-                    print("--------------------------------------------------------------")
-                    print("El coste en el indice {} es mayor que el previo, indice {}".format(i, i-1))
-                    print("Coste con indice {}: {}".format(i-1, historia_coste[i-1]))
-                    print("Coste con indice {}: {}".format(i, historia_coste[i]))
-            print("--------------------------------------------------------------")
-            print("Tamaño del historial de costes: {}".format(len(historia_coste)))
-            print("Coste minimo, con indice {}: {}".format(np.argmin(historia_coste), np.min(historia_coste)))
+            # print("Cost history:")
+            # print("{}".format(historia_coste))
+            # for i in range(1, len(historia_coste)):
+            #     if historia_coste[i]>historia_coste[i-1]:
+            #         print("-------------------------------------------------------------------")
+            #         print("Coste {} > Coste {}".format(i+1, i))
+            #         print("Coste {}: {}".format(i+1, historia_coste[i]))
+            #         print("Coste {}: {}".format(i, historia_coste[i-1]))
+            # print("-------------------------------------------------------------------")
+            print("Coste minimo, {}/{}: {}".format(np.argmin(historia_coste)+1, len(historia_coste), np.min(historia_coste)))
+            print("Ultimo coste: {}".format(historia_coste[-1]))
+            print("===================================================================")
 
 #===Scikit-learn=============================================================#
 def probar_sklearn(data, labels, *, display=False, title=None):
@@ -104,8 +107,16 @@ def probar_autoencoder(train_data, test_data, test_labels, *, display=False, tit
             super(Autoencoder, self).__init__()
             self.latent_dim = latent_dim
             self.shape = shape
-            self.encoder = Sequential([Flatten(), Dense(latent_dim, activation='relu'),])
-            self.decoder = Sequential([Dense(tf.math.reduce_prod(shape).numpy(), activation='sigmoid'), Reshape(shape)])
+            self.encoder = Sequential([
+                Dense(100*latent_dim, activation='relu'),
+                Dense(50*latent_dim, activation='relu'),
+                Dense(latent_dim, activation='relu')
+            ])
+            self.decoder = Sequential([
+                Dense(50*latent_dim, activation='relu'),
+                Dense(100*latent_dim, activation='relu'),
+                Dense(shape[0], activation='sigmoid')
+            ])
         def call(self, x):
             encoded = self.encoder(x)
             decoded = self.decoder(encoded)
@@ -114,19 +125,25 @@ def probar_autoencoder(train_data, test_data, test_labels, *, display=False, tit
     shape = test_data.shape[1:]
     autoencoder = Autoencoder(n_dimensions, shape)
 
-    autoencoder.compile(optimizer='adam', loss=MeanSquaredError())
-    autoencoder.fit(train_data, train_data, epochs=max_iter, shuffle=True, validation_data=(test_data, test_data), verbose=nivel_verbose)
-
-    data_embedded = autoencoder.encoder(test_data).numpy()
+    # autoencoder.compile(optimizer='adam', loss=MeanSquaredError())
+    
+    from keras.api.optimizers import SGD
+    sgd = SGD(learning_rate=lr/10000)
+    autoencoder.compile(optimizer='sgd', loss='mse')
+    autoencoder.fit(train_data, train_data, epochs=10, shuffle=True, validation_data=(test_data, test_data), verbose=nivel_verbose)
+    
+    if display_amount>0:
+        rand_indices = np.random.randint(low=0, high=len(test_data), size=display_amount)
+        display_data = test_data[rand_indices]
+        display_labels = test_labels[rand_indices]
+    else:
+        display_data = test_data
+        display_labels = test_labels
+    
+    data_embedded = autoencoder.encoder(display_data).numpy()
 
     if display:
-        if display_amount>0:
-            rand_indices = np.random.randint(low=0, high=len(data_embedded), size=display_amount)
-            display_data = data_embedded[rand_indices]
-            display_labels = test_labels[rand_indices]
-            ut.display_embed(display_data, display_labels, title=title)
-        else:
-            ut.display_embed(data_embedded, test_labels, title=title)
+        ut.display_embed(data_embedded, display_labels, title=title)
 
 
 #=======================================================================================================#

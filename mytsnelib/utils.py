@@ -92,17 +92,17 @@ def display_embed(embed, labels, *, title=None):
     y = embed.T[1]
     if is3d:
         z = embed.T[2]
-        for i in range(0,x.shape[0]):
-            plt.plot(x[i],y[i],z[i],marker='o',linestyle='', markersize=5, label=labels[i])
+        for i in range(0, len(embed)):
+            plt.plot(x[i], y[i], z[i], marker='o', linestyle='', markersize=5, label=labels[i])
     else:
-        for i in range(0,x.shape[0]):
-            plt.plot(x[i],y[i],marker='o',linestyle='', markersize=5, label=labels[i])
+        for i in range(0, len(embed)):
+            plt.plot(x[i], y[i], marker='o', linestyle='', markersize=5, label=labels[i])
     
 
     handles, labels = plt.gca().get_legend_handles_labels()
     labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0]))
     by_label = dict(zip(labels, handles))
-    plt.legend(by_label.values(), by_label.keys(), draggable=True)
+    plt.legend(by_label.values(), by_label.keys(), draggable=True, loc='upper right')
     if title is not None:
         plt.title(title)
     plt.show()

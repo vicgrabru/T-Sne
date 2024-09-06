@@ -91,6 +91,15 @@ def pairwise_euclidean_distance(X, *, sqrt=False, inf_diag=False) -> np.ndarray:
 
     X = np.array(X)
 
+    # X_cuadrado = np.sum(np.square(X), axis=1)
+    # Y_cuadrado = X_cuadrado.reshape((-1,1))
+    # producto = np.dot(X, X.T)
+    # result = X_cuadrado - 2*producto + Y_cuadrado
+    # result = np.zeros_like(np.dot(X, X.T))
+    # for i in range(len(X)):
+        # diferencia = np.sum(np.square(X[i]-X), axis=1)
+        # result[i] = diferencia
+    # rapido pero consume un cristo y medio de memoria
     result = np.sum((X[None, :] - X[:, None])**2, 2)
 
     if sqrt:
@@ -98,6 +107,7 @@ def pairwise_euclidean_distance(X, *, sqrt=False, inf_diag=False) -> np.ndarray:
     if inf_diag:
         np.fill_diagonal(result, np.inf)
     
+    del(X)
     return result
 
 #===Joint Probabilities (T-Student)========================================
@@ -129,6 +139,7 @@ def joint_probabilities_student(distances:np.ndarray)-> np.ndarray:
     np.fill_diagonal(d2, 0.)
     
     result = d1/np.sum(d2)
+    del(d1, d2)
     return np.maximum(result,0.)
 
 #===Joint Probabilities (Gaussian))========================================
@@ -157,6 +168,7 @@ def joint_probabilities_gaussian(distances:np.ndarray, perplexity:int, tolerance
     cond_probs = conditional_p(distances, devs)
     result = (cond_probs+cond_probs.T)/(2.*len(distances))
     
+    del(devs, cond_probs)
     return result
 def search_deviations(distances:np.ndarray, perplexity=10, tolerance=0.1, iters=1000) -> np.ndarray:
     """Obtain the Standard Deviations (σ) of each point in the given set (from the distances) such that
@@ -208,11 +220,13 @@ def conditional_p(distances:np.ndarray, deviations:np.ndarray) -> np.ndarray:
     """
 
     d1 = np.exp(-np.abs(distances)/(2.*np.reshape(np.abs(deviations), [-1,1])))
-    d2 = np.copy(d1)
 
+    d2 = np.copy(d1)
     np.fill_diagonal(d2, 0.)
 
     result = d1 / np.reshape(np.sum(d2, axis=1), [-1,1])
+
+    del(d1, d2)
     return np.maximum(result, 0.)
 
 #===Perplexity=============================================================
@@ -221,8 +235,12 @@ def perplexity_from_conditional_p(cond_p:np.ndarray) -> np.ndarray:
     following the formula
     Perp(P) = 2**(-sum( p_{j|i}*log_2(p_{j|i})))
     """
-    perp = -np.sum(cond_p*np.log2(cond_p),1)
-    return 2.**perp
+    cond = np.maximum(cond_p, 1e-8)
+    perp = -np.sum(cond*np.log2(cond),1)
+    result = 2.**perp
+
+    del(cond, perp)
+    return result
 
 #===Vecinos mas cercanos===================================================
 def get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:
@@ -240,7 +258,7 @@ def get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:
         for rank in range(0, neighbors):
             j = indices_sorted[i][rank]
             result[i][j] = rank+1
-    
+    del(n, neighbors, indices_sorted)
     return result
 def get_neighbor_ranking_by_distance_fast(distances) -> np.ndarray:
     if len(distances.shape)!=2 or len(distances) != distances.shape[1]:
@@ -253,4 +271,5 @@ def get_neighbor_ranking_by_distance_fast(distances) -> np.ndarray:
 
     result[filas, indices_sorted] += columnas
     
+    del(indices_sorted, filas, columnas)
     return result

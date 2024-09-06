@@ -113,7 +113,11 @@ def kl_divergence(high_dimension_p, low_dimension_q) -> float:
         divergence : double.
             The divergence.
     """
-    aux = np.log(high_dimension_p/np.maximum(low_dimension_q, 1e-10))
+    low = np.maximum(low_dimension_q, 1e-8)
+    if 0. in low or 0 in low:
+        raise ValueError("Hay ceros en low")
+    division = np.divide(high_dimension_p, low)
+    aux = np.log(division)
     result = np.multiply(high_dimension_p, aux)
 
     return np.sum(result)
@@ -162,8 +166,8 @@ class TSne():
 
 
     def __init__(self, *, n_dimensions=2, perplexity=30., perplexity_tolerance=1e-10,
-                 metric='euclidean', init_method="random", init_embed=None, early_exaggeration:float=None,
-                 learning_rate=500., max_iter=1000, momentum_params=[250.,0.5,0.8], seed:int=None, verbose=0, iters_check=50):
+                 metric='euclidean', init_method="random", init_embed=None, early_exaggeration=12.,
+                 learning_rate:str|float="auto", max_iter=1000, momentum_params=[250.,0.5,0.8], seed:int=None, verbose=0, iters_check=50):
         
         #===validacion de parametros=================================================================================
         self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, metric, init_method, init_embed,early_exaggeration, learning_rate, max_iter, momentum_params, seed, verbose, iters_check)
@@ -178,8 +182,8 @@ class TSne():
         self.max_iter = max_iter
         self.init_embed = init_embed
         self.momentum_params = momentum_params
-        self.early_exaggeration = 1. if early_exaggeration is None else early_exaggeration
-        self.n_neighbors = 3*perplexity + 1
+        self.early_exaggeration = 12. if early_exaggeration is None else early_exaggeration
+        # self.n_neighbors = 3*perplexity + 1
         self.verbose = verbose
         self.iters_check = iters_check
         self.random_state = np.random.RandomState(int(time.time())) if seed is None else np.random.RandomState(seed)
@@ -258,12 +262,17 @@ class TSne():
             elif early_exaggeration <=0.:
                 raise ValueError("early_exaggeration must be a positive number")
         if learning_rate is not None: # learning_rate: float
-            if not isinstance(learning_rate, float):
+            if isinstance(learning_rate, str):
+                if learning_rate != "auto":
+                    raise ValueError("The only str value acceptable for learning_rate is 'auto'")
+            elif isinstance(learning_rate, float):
+                if learning_rate in invalid_numbers:
+                    raise ValueError("learning_rate must be finite and not NaN")
+                elif learning_rate <=0.:
+                    raise ValueError("learning_rate must be a positive number")
+            else:
                 raise ValueError("learning_rate must be of float type")
-            elif learning_rate in invalid_numbers:
-                raise ValueError("learning_rate must be finite and not NaN")
-            elif learning_rate <=0.:
-                raise ValueError("learning_rate must be a positive number")
+            
         if max_iter is not None: # max_iter: int
             if not isinstance(max_iter, int):
                 raise ValueError("max_iter must be of int type")
@@ -315,14 +324,14 @@ class TSne():
         if embed is not None:
             if len(input) != len(embed):
                 raise ValueError("The input data must have the same number of samples as the given embedding")
-        if len(result) <= self.n_neighbors:
+        if len(result) <= 3*self.perplexity + 1:
             raise ValueError("The number of samples cannot be lower than the number of neighbors")
         
         if result.ndim>2:
-            new_result = []
-            for i in range(len(result)):
-                new_result.append(result[i].flatten())
-            return np.asarray(new_result)
+            dims = 1
+            for d in result.shape[1:]:
+                dims*=d
+            return result.reshape((len(result), dims))
         return result
     def __rand_embed(self, *, n_samples:int, n_dimensions:int) -> np.ndarray:
         """Returns a random embedding following the given parameters.
@@ -357,9 +366,10 @@ class TSne():
             Array with the class that each element in X belongs to.
         """
 
-        
-        
         X = self.__fit_input_validation(input, embed=self.init_embed)
+
+        if isinstance(self.learning_rate, str):
+            self.learning_rate = np.floor(len(X)/self.early_exaggeration)
 
         if self.verbose>0:
             t0_g = time.time_ns()
