@@ -13,14 +13,14 @@ seed = 4
 iters_check = 50
 init_method = "random"
 #---Cosas que mostrar por consola----------------------#
-nivel_verbose=0
+nivel_verbose=1
 #======================================================#
 
 #===Mio======================================================================#
 def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False, display_best_cost=False, print_cost_history=False):
     from mytsnelib import functions
     #perp = n_vecinos*3
-    perp = np.floor(len(data)/(9))
+    perp = np.floor(len(data)/3)
     perplexity_tolerance = 1e-10
     momentum_params = [250, 0.5, 0.8]
     model = functions.TSne(n_dimensions=n_dimensions,
@@ -62,7 +62,7 @@ def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False,
 #===Scikit-learn=============================================================#
 def probar_sklearn(data, labels, *, display=False, title=None):
     import sklearn.manifold as mnf
-    perp = np.floor(len(data)/9)
+    perp = np.floor(len(data)/3)
     model = mnf.TSNE(n_components=n_dimensions,
                      learning_rate=lr,
                      init=init_method,

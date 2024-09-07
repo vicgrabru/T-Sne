@@ -3,38 +3,7 @@ import collections.abc as abc
 import numpy as np
 import matplotlib.pyplot as plt
 
-# def read_csv(route, *, labels_in_first_column=False, num_type=np.int8, skip_start_row=False):
-#     """Read a csv file in the given route.
 
-#     Parameters
-#     ----------
-#     route: str.
-#         The route of the csv file to read.
-
-#     has_labels: boolean. default=False.
-#         Wether or not the given csv has a labels column at the end.
-    
-#     index_start: int. default=0.
-#         Starting index of the entries to return
-
-#     Returns
-#     ---------
-#     result: tuple of 2 elements or ndarray of shape (n_samples, n_features)
-#         If has_labels is set to True, this is a tuple of 2 elements, where the first is
-#         a ndarray of shape (n_samples, n_features) that contains the data in the csv, and a
-#         ndarray of shape (1,n_samples) with the labels corresponding to each entry in the first ndarray.
-#         Otherwise, it returns the first ndarray of shape (n_samples, n_features)
-#     """
-#     with open(route, newline='') as csvfile:
-#         list_reader = list(csv.reader(csvfile, delimiter=','))
-#         array_reader = np.asarray(list_reader[1:], dtype=num_type) if skip_start_row else np.asarray(list_reader, dtype=num_type)
-#         if labels_in_first_column:
-#             labels = array_reader.T[0]
-#             entries = array_reader.T[1:].T
-#         else:
-#             labels = array_reader.T[-1]
-#             entries = array_reader.T[:-1].T
-#         return entries, labels
 def read_csv(route, *, labels_in_first_column=False, num_type=np.int8, skip_start_row=False):
     """Read a csv file in the given route.
 
@@ -74,16 +43,6 @@ def read_csv(route, *, labels_in_first_column=False, num_type=np.int8, skip_star
         labels = data.T[-1]
         samples = data[:,:-1]
     return np.asarray(samples), np.asarray(labels)
-    # for route in routes:
-    #     entry, label = read_csv(route, labels_in_first_column=labels_in_first_column, num_type=num_type,skip_start_row=skip_start_row)
-    #     if samples is None:
-    #         samples = entry
-    #         labels = label
-    #     else:
-    #     
-    #         samples = np.append(samples, entry, axis=0)
-    #         labels = np.append(labels, label, axis=0)
-    # return np.asarray(samples), np.asarray(labels)
 
 
 def display_embed(embed, labels, *, title=None):

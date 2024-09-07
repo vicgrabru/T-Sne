@@ -30,12 +30,12 @@ data, labels = ut.read_csv("data_full/mnist_test.csv", labels_in_first_column=fi
 data_test, labels_test = ut.read_csv("data_full/mnist_test.csv", labels_in_first_column=first_column, num_type=n_type, skip_start_row=skip_start)
 
 seed = 2
-n_samples = 3000
+n_samples = 600
 index_start = 0
 rng = np.random.default_rng(seed)
 random_indexes = rng.integers(index_start, len(data), size=n_samples)
 
-data_prueba = data[random_indexes]
+data_prueba = data[random_indexes, :]
 labels_prueba = labels[random_indexes]
 #=================================================================#
 
@@ -51,7 +51,6 @@ def test_data_dims(input:np.ndarray):
 
 
 def probar_otra_cosa():
-    # import _elementtree as et
     
     
     print("Probando otra cosa")
@@ -61,7 +60,7 @@ def probar_otra_cosa():
 #---Parametros ejecucion------------------------------------------#
 print_tiempo = False
 #---------------------------
-caso_prueba = "otro"
+caso_prueba = "mio"
 display_embed = True
 compute_cost = True
 display_cost = True

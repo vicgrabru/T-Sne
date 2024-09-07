@@ -20,25 +20,28 @@ def __gradient_safe(P, Q, y, y_dist) -> np.ndarray:
     pq_diff = P - Q
     y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
 
-    aux = (1+np.copy(y_dist))**(-1)
-    return 4 * np.sum(np.expand_dims(pq_diff, 2) * y_diff * np.expand_dims(aux,2), axis=1)
+    aux = (1+y_dist)**(-1)
+    result = 4 * np.sum(np.expand_dims(pq_diff, 2) * y_diff * np.expand_dims(aux,2), axis=1)
+    
+    del aux, pq_diff, y_diff
+    return result
 def __gradient_forces(P, Q, y, y_dist) -> np.ndarray:
     y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
 
     # paso 1: obtener Z
-    dists = (1+np.copy(y_dist))**(-1)
-    np.fill_diagonal(dists, 0.)
-    z = dists.sum()
+    dists = (1+y_dist)**(-1)
+    np.fill_diagonal(dists, 0)
+    z = np.sum(dists)
 
     # paso 2: calcular fuerzas atractivas y repulsivas
     # fuerzas atractivas
     pq = P*Q*z
-    np.fill_diagonal(pq, 0.)
+    np.fill_diagonal(pq, 0)
     attractive = np.expand_dims(pq, 2)* y_diff
 
     # fuerzas repulsivas
     q2 = (Q**2)*z
-    np.fill_diagonal(q2, 0.)
+    np.fill_diagonal(q2, 0)
     repulsive = np.expand_dims(q2, 2)* y_diff
 
     # paso 3: combinacion
@@ -90,21 +93,8 @@ def kl_divergence(P, Q) -> float:
         divergence : double.
             The divergence.
     """
-    
-    
-    low = np.copy(Q)
-
-    low[low<=0] = np.finfo(Q.dtype).eps
-    
-    aux = np.divide(P, low)
-    del(low)
-
-    aux[aux==0] = np.finfo(Q.dtype).eps
-
-    result = np.multiply(P, np.log(aux))
-    del(aux)
-
-    return np.sum(result)
+    aux = np.nan_to_num(np.log(P/Q))
+    return np.sum(P*aux)
 
 class TSne():
     """Class for performing the T-Sne embedding.
@@ -167,29 +157,16 @@ class TSne():
         self.init_embed = init_embed
         self.momentum_params = momentum_params
         self.early_exaggeration = 12. if early_exaggeration is None else early_exaggeration
-        # self.n_neighbors = 3*perplexity + 1
         self.verbose = verbose
         self.iters_check = iters_check
         self.rng = np.random.default_rng(int(time.time())) if seed is None else np.random.default_rng(seed)
-        # self.random_state = np.random.RandomState(int(time.time())) if seed is None else np.random.RandomState(seed)
-
+        
         #===parametros auxiliares====================================================================================
-        self.current_embed = None
-        # self.embed_history = []
         self.cost_history = []
         self.best_cost_iter = None
         self.best_cost_embed = None
-        # self.cost_history_embed = []
-        # self.best_iter_cost = None
         self.fitting_done = False
-        self.current_embed_dist = None
-        
-        #===parametros para las metricas de rendimiento==============================================================
-        self.t_diff_distancias_og = None
-        self.t_diff_p = None
-        self.t_diff_dist_embed = []
-        self.t_diff_q = []
-        self.t_diff_grad = []
+
     def __input_validation(self,n_dimensions,perplexity,perplexity_tolerance,metric,init_method,init_embed,
                            early_exaggeration,learning_rate,max_iter,momentum_params, seed, verbose, iters_check):
         accepted_methods = ["random", "precomputed"]
@@ -309,7 +286,7 @@ class TSne():
         if embed is not None:
             if len(input) != len(embed):
                 raise ValueError("The input data must have the same number of samples as the given embedding")
-        if len(result) <= 3*self.perplexity + 1:
+        if len(result) <= self.perplexity:
             raise ValueError("The number of samples cannot be lower than the number of neighbors")
         
         if result.ndim>2:
@@ -353,8 +330,7 @@ class TSne():
 
         #====Input con dimensiones correctas y embed inicial=====================================================================================================
         X = self.__fit_input_validation(input, embed=self.init_embed)
-        if self.init_embed is None:
-            self.init_embed = self.__rand_embed(n_samples=len(X), n_dimensions=self.n_dimensions)
+        
 
         #====Ajuste del learning rate============================================================================================================================
         if isinstance(self.learning_rate, str):
@@ -368,40 +344,54 @@ class TSne():
         #====Obtener P===========================================================================================================================================
         dist_original = similarities.pairwise_euclidean_distance(X) #solo es necesario para calcular P
         p = similarities.joint_probabilities_gaussian(dist_original, self.perplexity, self.perplexity_tolerance)
-        del(dist_original) #dist_original ya no hace falta
+        
+        del dist_original #dist_original ya no hace falta
 
         #====Descenso de gradiente===============================================================================================================================
-        self.__gradient_descent(self.max_iter, p, compute_cost)
-        del(p)
+        final_embed = self.__gradient_descent(self.max_iter, p, compute_cost)
+        del p
+        
         #====Salida por consola de verbosidad====================================================================================================================
         if self.verbose>0:
-                print("=================================================================")
-                print("Embedding process finished")
-                t_diff = (time.time_ns()-t0)*1e-9
-                t_diff_clean = time.gmtime(t_diff)
-                t_diff_exact_ms = t_diff - t_diff_clean.tm_sec
-                print("Execution time (min:sec): {}.{}".format(time.strftime("%M:%S", t_diff_clean), str(t_diff_exact_ms)[2:8]))
-                t_iter = t_diff/self.max_iter
-                del(t_diff, t_diff_clean, t_diff_exact_ms)
-                t_iter_clean = time.gmtime(t_iter)
-                t_iter_exact_ms = t_iter - t_iter_clean.tm_sec
-                print("Time/Iteration (s): {}.{}".format(time.strftime("%S", t_iter_clean), str(t_iter_exact_ms)[2:8]))
-                print("=================================================================")
-                del(t_iter, t_iter_clean, t_iter_exact_ms)
-        del(t0)
+            t_diff = (time.time_ns()-t0)*1e-9
+            strings_imprimir = []
+            while len(strings_imprimir)<2:
+                if len(strings_imprimir)==1:
+                    t_diff /=self.max_iter
+                t_diff_exact = np.floor(t_diff)
+                
+                tS = str(t_diff_exact%60 + (t_diff - t_diff_exact))[:8]
+                tM = int(np.floor(t_diff_exact/60)%60)
+                tH = int(np.floor(t_diff_exact/3600))
 
+                if t_diff_exact>3600:
+                    strings_imprimir.append("(h:min:sec): {}:{}:{}".format(tH,tM,tS))
+                elif t_diff_exact>60:
+                    strings_imprimir.append("(min:sec): {}:{}".format(tM,tS))
+                else:
+                    strings_imprimir.append("(s): {}".format(tS))
+            print("====================================")
+            print("Embedding process finished")
+            print("Execution time {}".format(strings_imprimir[0]))
+            print("Time/Iteration {}".format(strings_imprimir[1]))
+            print("====================================")
+            del t0,t_diff,t_diff_exact,tS,tM,tH,strings_imprimir
+        
         #====Establecer indicador de que se ha hecho el embedding================================================================================================
         self.fitting_done = True
-
-        return np.array(self.current_embed)
+        return np.array(final_embed)
     def __gradient_descent(self, t, p, compute_cost=True):
-        self.current_embed = np.copy(self.init_embed)
+        if self.init_embed is None:
+            self.init_embed = self.__rand_embed(n_samples=len(p), n_dimensions=self.n_dimensions)
+        
+        current_embed = np.copy(self.init_embed)
         
         #====dist_embed==========================================================================================================================================
-        self.current_embed_dist = similarities.pairwise_euclidean_distance(self.current_embed)
+
+        current_embed_dist = similarities.pairwise_euclidean_distance(current_embed)
         
         #====q===================================================================================================================================================
-        q = similarities.joint_probabilities_student(self.current_embed_dist)
+        q = similarities.joint_probabilities_student(current_embed_dist)
         
         
         # self.embed_history.append(self.current_embed); self.embed_history.append(self.current_embed)
@@ -413,33 +403,36 @@ class TSne():
         if compute_cost:
             cost = kl_divergence(p, q)
             self.best_cost_iter = 1
-            self.best_cost_embed = np.copy(self.current_embed)
+            self.best_cost_embed = np.copy(current_embed)
             self.cost_history.append(cost); self.cost_history.append(cost)
             # self.cost_history_embed.append(self.current_embed); self.cost_history_embed.append(self.current_embed)
 
         lr = self.learning_rate
-        # early = self.early_exaggeration
+        early = self.early_exaggeration
+        iter_threshold = int(self.momentum_params[0])
         momentum = self.momentum_params[1]
-        previous_embed = np.copy(self.current_embed)
+        previous_embed = np.copy(current_embed)
         for i in range(2,t):
+            if self.verbose>1 and i%self.iters_check==0:
+                print("---------------------------------")
+                print("Comenzando iteracion {}/{}".format(i,t))
             #====grad================================================================================================================================================
-            # grad = gradient(p, q*early, self.current_embed, self.current_embed_dist, caso="forces")
-            grad = gradient(p, q, self.current_embed, self.current_embed_dist, caso="forces")
+            grad = gradient(p, q*early, current_embed, current_embed_dist, caso="forces")
 
             #====embed===============================================================================================================================================
             #y{i} = y{i-1} + learning_rate*gradiente + momentum(t) * (y{i-1} - y{i-2})
             # y = self.embed_history[-1] - lr*grad + momentum*(self.embed_history[-1]-self.embed_history[-2])
-            new_y = self.current_embed - lr*grad + momentum*(self.current_embed-previous_embed)
+            new_embed = current_embed - lr*grad + momentum*(current_embed-previous_embed)
 
             #====momentum change=====================================================================================================================================
-            if i==self.momentum_params[0]:
-                # early = 1
+            if i==iter_threshold:
+                early = 1
                 momentum = self.momentum_params[2]
 
             #====dist_embed==========================================================================================================================================
-            self.current_embed_dist = similarities.pairwise_euclidean_distance(new_y)
+            current_embed_dist = similarities.pairwise_euclidean_distance(new_embed)
             #====q===================================================================================================================================================
-            q = similarities.joint_probabilities_student(self.current_embed_dist)
+            q = similarities.joint_probabilities_student(current_embed_dist)
             
             
             
@@ -452,13 +445,17 @@ class TSne():
                     cost = kl_divergence(p, q)
                     if cost<np.min(self.cost_history):
                         self.best_cost_iter = i
-                        self.best_cost_embed = np.copy(new_y)
+                        self.best_cost_embed = np.copy(new_embed)
                     self.cost_history.append(cost)
                     # self.cost_history_embed.append(y)
             
             #actualizar y(t-1), y(t-2)
-            previous_embed = np.copy(self.current_embed)
-            self.current_embed = np.copy(new_y)
+            previous_embed = np.copy(current_embed)
+            current_embed = np.copy(new_embed)
+        
+
+        del lr,early,iter_threshold,momentum,previous_embed,current_embed_dist,q
+        return current_embed
 
     def get_best_embedding_cost(self) -> np.ndarray:
         assert self.fitting_done

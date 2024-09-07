@@ -1,12 +1,11 @@
 import numpy as np
-
 #===Array checks===========================================================
 def check_nan_inf(x:np.ndarray, check_neg=False):
     if np.nan in x:
         raise ValueError("NaN in array")
     if np.inf in x:
         raise ValueError("inf in array")
-    if check_neg and np.where(x<0)[0].__len__()>0:
+    if check_neg and len(np.where(x<0)[0])>0:
         raise ValueError("array cant have negative values")
 def check_arrays_compatible(X:np.ndarray,Y:np.ndarray=None,X_dot_product:np.ndarray=None,Y_dot_product:np.ndarray=None) -> tuple[np.ndarray]:
     """Returns the X and Y arrays so they are compatible for the distance calculation
@@ -86,68 +85,40 @@ def pairwise_euclidean_distance(X, *, sqrt=False, inf_diag=False) -> np.ndarray:
     distances : ndarray of shape (n_samples_X, n_samples_X)
         Returns the distances between the row vectors of `X`.
     """
-    check_nan_inf(X)
-
-
-    X = np.array(X)
+    
+    X = np.nan_to_num(X)
+    
+    # check_nan_inf(X)
+    # X = np.array(X)
 
     
 
-    espacio_maybe = X.shape[0]*X.shape[0]*X.dtype.itemsize
+    espacio_maybe = len(X)*len(X)*X.dtype.itemsize
     if espacio_maybe>9e9:
         print("Espacio que iba a ocupar: {} GB".format(espacio_maybe/1e9))
         raise ValueError("No")
 
-    espacio_memoria_bits = X.shape[0]*X.shape[0]*X.shape[1]*X.dtype.itemsize
+    espacio_memoria_bits = len(X)*len(X)*X.shape[1]*X.dtype.itemsize
     if espacio_memoria_bits<7e9:
         # rapido pero consume un cristo y medio de memoria
         result = np.sum((X[None, :] - X[:, None])**2, 2)
     else:
         X_cuadrado = np.sum(np.square(X), axis=1)
-        Y_cuadrado = X_cuadrado.reshape((-1,1))
+        Y_cuadrado = np.reshape(X_cuadrado, [-1,1])
         producto = np.dot(X, X.T)
         result = X_cuadrado - 2*producto + Y_cuadrado
-        del(X_cuadrado, Y_cuadrado, producto)
-
-    del(X)
+        del X_cuadrado, Y_cuadrado, producto
 
     if sqrt:
         result = np.sqrt(result)
+    else:
+        result = np.abs(result)
     if inf_diag:
         np.fill_diagonal(result, np.inf)
+    
     return result
 
-#===Joint Probabilities (T-Student)========================================
-def joint_probabilities_student(distances:np.ndarray)-> np.ndarray:
-    """Obtain the joint probabilities (or affinities) of the points with the given distances.
 
-    Parameters
-    ----------
-    distances : ndarray of shape (n_samples, n_samples)
-        An array with the distances between the different points. The distances must be calculated without performing the square root
-
-    perplexity : int. default = 10.0
-        An array where each row is a sample and each column is a feature.
-        Optional. If None, it assumes `Y=X`.
-    
-    tolerance : float. default = 0.1
-        The ratio of tolerance for the goal perplexity expressed as
-        per-unit (e.g.: a tolerance of 25% would be 0.25).
-        Note: If 0, the result perplexity must be exact
-
-    Returns
-    -------
-    probabilities : ndarray of shape (n_samples, n_samples) that contains the joint probabilities between the points given.
-    """
-    potencias = np.zeros_like(distances)-np.ones_like(distances)
-    d1 = np.power(distances+1, potencias)
-    d2 = np.copy(d1)
-
-    np.fill_diagonal(d2, 0.)
-    
-    result = d1/np.sum(d2)
-    del(d1, d2, potencias)
-    return np.maximum(result,0.)
 
 #===Joint Probabilities (Gaussian))========================================
 def joint_probabilities_gaussian(distances:np.ndarray, perplexity:int, tolerance:float=None) -> np.ndarray:
@@ -171,13 +142,17 @@ def joint_probabilities_gaussian(distances:np.ndarray, perplexity:int, tolerance
     -------
     probabilities : ndarray of shape (n_samples, n_samples) that contains the joint probabilities between the points given.
     """
-    devs = search_deviations(distances,perplexity,tolerance)
-    cond_probs = conditional_p(distances, devs)
-    result = (cond_probs+cond_probs.T)/(2.*len(distances))
+    dists = np.abs(distances)
     
-    del(devs, cond_probs)
+    devs = search_deviations(dists,perplexity,tolerance)
+    cond_probs = __conditional_p(dists, devs)
+    
+    result = (cond_probs+cond_probs.T)/(2*dists.shape[0])
+    
+    del dists,devs,cond_probs
     return result
-def search_deviations(distances:np.ndarray, perplexity=10, tolerance=0.1, iters=1000) -> np.ndarray:
+#---Deviations-------------------------------------------------------------
+def search_deviations(distances:np.ndarray, perplexity=10., tolerance=0.1, iters=1000) -> np.ndarray:
     """Obtain the Standard Deviations (σ) of each point in the given set (from the distances) such that
     the perplexities obtained when using them for the calculations of the conditional similarities will be
     within the given perplexity range.
@@ -205,54 +180,83 @@ def search_deviations(distances:np.ndarray, perplexity=10, tolerance=0.1, iters=
     """
     result = []
     for i in range(len(distances)):
-        func = lambda dev: perplexity_from_conditional_p(conditional_p(distances[i:i+1, :], np.array([dev])))
+        func = lambda dev: __perplexity(__conditional_p(distances[i:i+1, :], np.array([dev])))
         result.append(__search_deviation_indiv(func, perplexity, tolerance, iters))
     return np.array(result)
 def __search_deviation_indiv(func, perplexity_goal, tolerance, iters, *, min_deviation=1e-20, max_deviation=10000.) -> float:
     for _ in range(iters):
-        new_deviation = (min_deviation+max_deviation)/2.
-        perplexity = func(new_deviation)
-        if abs(perplexity - perplexity_goal) <= tolerance:
+        new_deviation = np.mean([min_deviation, max_deviation])
+        diff = func(new_deviation) - perplexity_goal
+        if abs(diff) <= tolerance:
             return new_deviation
-        if perplexity > perplexity_goal:
+        if diff > 0:
             max_deviation = new_deviation
         else:
             min_deviation = new_deviation
     return new_deviation
 
-#===Conditional Probabilities==============================================
-def conditional_p(distances:np.ndarray, deviations:np.ndarray) -> np.ndarray:
+#---Perplexity-------------------------------------------------------------
+def __perplexity(cond_p:np.ndarray) -> np.ndarray:
+    """Compute the perplexity from all the conditional p_{j|i}
+    following the formula
+    Perp(P_i) = 2**(-sum( p_{j|i}*log_2(p_{j|i})))
+    """
+    aux = cond_p*np.log2(cond_p)
+    result = 2**(-np.sum(np.nan_to_num(aux)))
+
+    del aux
+    return result
+#---Conditional Probabilities----------------------------------------------
+def __conditional_p(distances:np.ndarray, sigmas:np.ndarray) -> np.ndarray:
     """Compute the conditional similarities p_{j|i} and p_{i|j}
     using the distances and standard deviations 
     """
-
-    d1 = np.exp(-np.abs(distances)/(2*np.square(np.reshape(deviations, [-1,1]))))
-
+    
+    d1 = np.exp(distances/(-2*np.square(np.reshape(sigmas, [-1,1]))))
     d2 = np.copy(d1)
-    np.fill_diagonal(d2, 0.)
+    np.fill_diagonal(d2, 0)
     # d1+=1e-8
     result = d1 / np.reshape(np.sum(d2, axis=1), [-1,1])
 
-    del(d1,d2)
-    return np.maximum(result, 0.)
+    del d1,d2
+    result[result<=0] = 0
+    return result
 
-#===Perplexity=============================================================
-def perplexity_from_conditional_p(cond_p:np.ndarray) -> np.ndarray:
-    """Compute the perplexity from the conditional p_{j|i} and p_{i|j}
-    following the formula
-    Perp(P) = 2**(-sum( p_{j|i}*log_2(p_{j|i})))
+#===Joint Probabilities (T-Student)========================================
+def joint_probabilities_student(distances:np.ndarray)-> np.ndarray:
+    """Obtain the joint probabilities (or affinities) of the points with the given distances.
+
+    Parameters
+    ----------
+    distances : ndarray of shape (n_samples, n_samples)
+        An array with the distances between the different points. The distances must be calculated without performing the square root
+
+    perplexity : int. default = 10.0
+        An array where each row is a sample and each column is a feature.
+        Optional. If None, it assumes `Y=X`.
+    
+    tolerance : float. default = 0.1
+        The ratio of tolerance for the goal perplexity expressed as
+        per-unit (e.g.: a tolerance of 25% would be 0.25).
+        Note: If 0, the result perplexity must be exact
+
+    Returns
+    -------
+    probabilities : ndarray of shape (n_samples, n_samples) that contains the joint probabilities between the points given.
     """
-    aux = cond_p.T*np.log2(cond_p.T)
-    aux[cond_p.T==0.] = 0.
-    entropy = -np.sum(aux,1)
-    result = 2**entropy
+    d1 = (1+distances)**(-1)
+    d2 = np.copy(d1)
 
-    del(cond, entropy)
+    np.fill_diagonal(d2, 0)
+    
+    result = d1/np.sum(d2)
+    del d1, d2
+    result[result<=0] = 0
     return result
 
 #===Vecinos mas cercanos===================================================
 def get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:
-    if distances.shape.__len__()!=2 or distances.shape[0] != distances.shape[1]:
+    if distances.shape.ndim!=2 or len(distances) != distances.shape[1]:
         raise ValueError("distances must be a square 2D array")
     
     n = distances.shape[0]
@@ -266,10 +270,11 @@ def get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:
         for rank in range(0, neighbors):
             j = indices_sorted[i][rank]
             result[i][j] = rank+1
-    del(n, neighbors, indices_sorted)
+    del n,neighbors,indices_sorted
     return result
+
 def get_neighbor_ranking_by_distance_fast(distances) -> np.ndarray:
-    if len(distances.shape)!=2 or len(distances) != distances.shape[1]:
+    if distances.shape.ndim!=2 or len(distances) != distances.shape[1]:
         raise ValueError("distances must be a square 2D array")
 
     result = np.ones_like(distances).astype(int)
@@ -279,5 +284,5 @@ def get_neighbor_ranking_by_distance_fast(distances) -> np.ndarray:
 
     result[filas, indices_sorted] += columnas
     
-    del(indices_sorted, filas, columnas)
+    del indices_sorted,filas,columnas
     return result
