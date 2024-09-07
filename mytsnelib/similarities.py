@@ -91,23 +91,30 @@ def pairwise_euclidean_distance(X, *, sqrt=False, inf_diag=False) -> np.ndarray:
 
     X = np.array(X)
 
-    # X_cuadrado = np.sum(np.square(X), axis=1)
-    # Y_cuadrado = X_cuadrado.reshape((-1,1))
-    # producto = np.dot(X, X.T)
-    # result = X_cuadrado - 2*producto + Y_cuadrado
-    # result = np.zeros_like(np.dot(X, X.T))
-    # for i in range(len(X)):
-        # diferencia = np.sum(np.square(X[i]-X), axis=1)
-        # result[i] = diferencia
-    # rapido pero consume un cristo y medio de memoria
-    result = np.sum((X[None, :] - X[:, None])**2, 2)
+    
+
+    espacio_maybe = X.shape[0]*X.shape[0]*X.dtype.itemsize
+    if espacio_maybe>9e9:
+        print("Espacio que iba a ocupar: {} GB".format(espacio_maybe/1e9))
+        raise ValueError("No")
+
+    espacio_memoria_bits = X.shape[0]*X.shape[0]*X.shape[1]*X.dtype.itemsize
+    if espacio_memoria_bits<7e9:
+        # rapido pero consume un cristo y medio de memoria
+        result = np.sum((X[None, :] - X[:, None])**2, 2)
+    else:
+        X_cuadrado = np.sum(np.square(X), axis=1)
+        Y_cuadrado = X_cuadrado.reshape((-1,1))
+        producto = np.dot(X, X.T)
+        result = X_cuadrado - 2*producto + Y_cuadrado
+        del(X_cuadrado, Y_cuadrado, producto)
+
+    del(X)
 
     if sqrt:
         result = np.sqrt(result)
     if inf_diag:
         np.fill_diagonal(result, np.inf)
-    
-    del(X)
     return result
 
 #===Joint Probabilities (T-Student)========================================
@@ -132,14 +139,14 @@ def joint_probabilities_student(distances:np.ndarray)-> np.ndarray:
     -------
     probabilities : ndarray of shape (n_samples, n_samples) that contains the joint probabilities between the points given.
     """
-    
-    d1 = (distances+1.)**(-1)
+    potencias = np.zeros_like(distances)-np.ones_like(distances)
+    d1 = np.power(distances+1, potencias)
     d2 = np.copy(d1)
 
     np.fill_diagonal(d2, 0.)
     
     result = d1/np.sum(d2)
-    del(d1, d2)
+    del(d1, d2, potencias)
     return np.maximum(result,0.)
 
 #===Joint Probabilities (Gaussian))========================================
@@ -219,14 +226,14 @@ def conditional_p(distances:np.ndarray, deviations:np.ndarray) -> np.ndarray:
     using the distances and standard deviations 
     """
 
-    d1 = np.exp(-np.abs(distances)/(2.*np.reshape(np.abs(deviations), [-1,1])))
+    d1 = np.exp(-np.abs(distances)/(2*np.square(np.reshape(deviations, [-1,1]))))
 
     d2 = np.copy(d1)
     np.fill_diagonal(d2, 0.)
-
+    # d1+=1e-8
     result = d1 / np.reshape(np.sum(d2, axis=1), [-1,1])
 
-    del(d1, d2)
+    del(d1,d2)
     return np.maximum(result, 0.)
 
 #===Perplexity=============================================================
@@ -235,11 +242,12 @@ def perplexity_from_conditional_p(cond_p:np.ndarray) -> np.ndarray:
     following the formula
     Perp(P) = 2**(-sum( p_{j|i}*log_2(p_{j|i})))
     """
-    cond = np.maximum(cond_p, 1e-8)
-    perp = -np.sum(cond*np.log2(cond),1)
-    result = 2.**perp
+    aux = cond_p.T*np.log2(cond_p.T)
+    aux[cond_p.T==0.] = 0.
+    entropy = -np.sum(aux,1)
+    result = 2**entropy
 
-    del(cond, perp)
+    del(cond, entropy)
     return result
 
 #===Vecinos mas cercanos===================================================

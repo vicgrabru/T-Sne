@@ -2,13 +2,15 @@ import numpy as np
 import mytsnelib.utils as ut
 import time
 import tests.comparacion as comp
+
+
 # from os.path import join
 
 def test_haversine():
     assert True
 
 #=================================================================#
-n_type = np.int64
+n_type = np.int16
 first_column = True
 skip_start = True
 
@@ -27,12 +29,14 @@ skip_start = True
 data, labels = ut.read_csv("data_full/mnist_test.csv", labels_in_first_column=first_column, num_type=n_type, skip_start_row=skip_start)
 data_test, labels_test = ut.read_csv("data_full/mnist_test.csv", labels_in_first_column=first_column, num_type=n_type, skip_start_row=skip_start)
 
-n_samples = 300
+seed = 2
+n_samples = 3000
 index_start = 0
-np.random.RandomState(2)
-random_indexes = np.random.randint(index_start, len(data), size=n_samples)
+rng = np.random.default_rng(seed)
+random_indexes = rng.integers(index_start, len(data), size=n_samples)
 
-
+data_prueba = data[random_indexes]
+labels_prueba = labels[random_indexes]
 #=================================================================#
 
 
@@ -47,32 +51,31 @@ def test_data_dims(input:np.ndarray):
 
 
 def probar_otra_cosa():
+    # import _elementtree as et
+    
+    
     print("Probando otra cosa")
     a = np.array([[1,2,3],[4,5,6],[7,8,9]])
 
 
-
-
-
 #---Parametros ejecucion------------------------------------------#
-caso_prueba = "mio"
-display_embed = False
 print_tiempo = False
+#---------------------------
+caso_prueba = "otro"
+display_embed = True
 compute_cost = True
-display_cost = False
-print_cost_evo = True
+display_cost = True
+print_cost_evo = False
 
 if print_tiempo:
     t0 = time.time_ns()
 
 match caso_prueba:
     case "mio":
-        data_mio = data[random_indexes]
-        labels_mio = labels[random_indexes]
-        comp.probar_mio(data_mio, labels_mio, display=display_embed, calcular_coste=compute_cost, display_best_cost=display_cost, print_cost_history=print_cost_evo)
+        comp.probar_mio(data_prueba, labels_prueba, display=display_embed, calcular_coste=compute_cost, display_best_cost=display_cost, print_cost_history=print_cost_evo)
         # comp.probar_mio(data_full, labels_full, display=display_embed)
     case "skl":
-        comp.probar_sklearn(data, labels, display=display_embed)
+        comp.probar_sklearn(data_prueba, labels_prueba, display=display_embed)
         # comp.probar_sklearn(data_full, labels_full, display=display_embed)
     case "pca":
         comp.probar_pca(data,labels, display=display_embed)

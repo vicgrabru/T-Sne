@@ -4,28 +4,6 @@ from mytsnelib import similarities
 import time
 
 
-
-def print_efficiency(t0_ns, t1_ns, *, n_iters=None, n_ms_digits=None):
-    t_diff = (t1_ns-t0_ns)*1e-9
-    t_diff_clean = time.gmtime(t_diff)
-    t_diff_exact_ms = t_diff - t_diff_clean.tm_sec
-
-    if n_ms_digits is None or n_ms_digits<=0:
-        n = -3
-    else:
-        n = n_ms_digits
-    
-    print("=================================================================")
-    print("Embedding process finished")
-    print("Execution time (min:sec): {}.{}".format(time.strftime("%M:%S", t_diff_clean), str(t_diff_exact_ms)[2:2+n]))
-    if n_iters is not None:
-        t_iter = t_diff/n_iters
-        t_iter_clean = time.gmtime(t_iter)
-        t_iter_exact_ms = t_iter - t_iter_clean.tm_sec
-        print("Time/Iteration (s): {}.{}".format(time.strftime("%S", t_iter_clean), str(t_iter_exact_ms)[2:2+n]))
-    print("=================================================================")
-
-
 #===Gradiente====================================================================================================
 def gradient(P, Q, y, y_dist, caso="safe") -> np.ndarray:
     match caso:
@@ -42,27 +20,26 @@ def __gradient_safe(P, Q, y, y_dist) -> np.ndarray:
     pq_diff = P - Q
     y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
 
-    aux = 1. / (1. + y_dist)
-    return 4. * np.sum(np.expand_dims(pq_diff, 2) * y_diff * np.expand_dims(aux,2), axis=1)
+    aux = (1+np.copy(y_dist))**(-1)
+    return 4 * np.sum(np.expand_dims(pq_diff, 2) * y_diff * np.expand_dims(aux,2), axis=1)
 def __gradient_forces(P, Q, y, y_dist) -> np.ndarray:
     y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
 
     # paso 1: obtener Z
-    dists = 1./(1.+y_dist)
+    dists = (1+np.copy(y_dist))**(-1)
     np.fill_diagonal(dists, 0.)
     z = dists.sum()
 
     # paso 2: calcular fuerzas atractivas y repulsivas
     # fuerzas atractivas
-    pq = np.multiply(P,Q)*z
+    pq = P*Q*z
     np.fill_diagonal(pq, 0.)
-    attractive = np.multiply(np.expand_dims(pq, 2), y_diff)
+    attractive = np.expand_dims(pq, 2)* y_diff
 
     # fuerzas repulsivas
-    q2 = np.power(Q, 2)*z
+    q2 = (Q**2)*z
     np.fill_diagonal(q2, 0.)
-    repulsive = np.multiply(np.expand_dims(q2, 2), y_diff)
-    #np.fill_diagonal(repulsive, 0)
+    repulsive = np.expand_dims(q2, 2)* y_diff
 
     # paso 3: combinacion
     return 4*(np.sum(attractive, 1) - np.sum(repulsive, 1))
@@ -84,13 +61,13 @@ def __gradient_forces_v2(P, Q, y, y_dist) -> np.ndarray:
     # fuerzas atractivas
     # Optimizacion 1: considerar solo los 3*Perplexity vecinos mas cercanos
     
-    pq = np.multiply(P,Q)*z
+    pq = P*Q*z
     np.fill_diagonal(pq, 0.)
     attractive = np.multiply(np.expand_dims(pq, 2), y_diff)
 
     # fuerzas repulsivas
     # Optimizacion 2: TODO
-    q2 = np.power(Q, 2)*z
+    q2 = (Q**2)*z
     np.fill_diagonal(q2, 0.)
     repulsive = np.multiply(np.expand_dims(q2, 2), y_diff)
 
@@ -98,7 +75,7 @@ def __gradient_forces_v2(P, Q, y, y_dist) -> np.ndarray:
     return 4*(np.sum(attractive, 1) - np.sum(repulsive, 1))
 
 #===Funcion de coste: Kullback-Leibler divergence================================================================
-def kl_divergence(high_dimension_p, low_dimension_q) -> float:
+def kl_divergence(P, Q) -> float:
     """Computes the Kullback-Leibler divergence
     Parameters
     ----------
@@ -113,12 +90,19 @@ def kl_divergence(high_dimension_p, low_dimension_q) -> float:
         divergence : double.
             The divergence.
     """
-    low = np.maximum(low_dimension_q, 1e-8)
-    if 0. in low or 0 in low:
-        raise ValueError("Hay ceros en low")
-    division = np.divide(high_dimension_p, low)
-    aux = np.log(division)
-    result = np.multiply(high_dimension_p, aux)
+    
+    
+    low = np.copy(Q)
+
+    low[low<=0] = np.finfo(Q.dtype).eps
+    
+    aux = np.divide(P, low)
+    del(low)
+
+    aux[aux==0] = np.finfo(Q.dtype).eps
+
+    result = np.multiply(P, np.log(aux))
+    del(aux)
 
     return np.sum(result)
 
@@ -186,18 +170,19 @@ class TSne():
         # self.n_neighbors = 3*perplexity + 1
         self.verbose = verbose
         self.iters_check = iters_check
-        self.random_state = np.random.RandomState(int(time.time())) if seed is None else np.random.RandomState(seed)
+        self.rng = np.random.default_rng(int(time.time())) if seed is None else np.random.default_rng(seed)
+        # self.random_state = np.random.RandomState(int(time.time())) if seed is None else np.random.RandomState(seed)
 
         #===parametros auxiliares====================================================================================
-        self.element_classes = None
-        self.embed_history = []
-        self.q_history = []
+        self.current_embed = None
+        # self.embed_history = []
         self.cost_history = []
-        self.cost_history_embed = []
-        self.best_iter_cost = None
+        self.best_cost_iter = None
+        self.best_cost_embed = None
+        # self.cost_history_embed = []
+        # self.best_iter_cost = None
         self.fitting_done = False
-        self.prev_embed_dist = None
-        self.embed_dist_history = []
+        self.current_embed_dist = None
         
         #===parametros para las metricas de rendimiento==============================================================
         self.t_diff_distancias_og = None
@@ -351,11 +336,11 @@ class TSne():
         """
         assert n_samples is not None
         assert n_dimensions is not None
-
-        result = self.random_state.standard_normal(size=(n_samples, n_dimensions))
+        result = self.rng.standard_normal(size=(n_samples, n_dimensions))
+        # result = self.random_state.standard_normal(size=(n_samples, n_dimensions))
         return result
 
-    def fit(self, input, classes:np.ndarray=None, compute_cost=True, measure_efficiency=False) -> np.ndarray:
+    def fit(self, input, compute_cost=True) -> np.ndarray:
         """Fit the given data and perform the embedding
 
         Parameters
@@ -366,249 +351,119 @@ class TSne():
             Array with the class that each element in X belongs to.
         """
 
+        #====Input con dimensiones correctas y embed inicial=====================================================================================================
         X = self.__fit_input_validation(input, embed=self.init_embed)
-
-        if isinstance(self.learning_rate, str):
-            self.learning_rate = np.floor(len(X)/self.early_exaggeration)
-
-        if self.verbose>0:
-            t0_g = time.time_ns()
-        
-        self.learning_rate = max(self.learning_rate, np.floor(len(X)/12.))
-
-        #====distancias_og=======================================================================================================================================
-        if measure_efficiency:  # mediciones de tiempo
-            t_0 = time.time_ns()
-        dist_original = similarities.pairwise_euclidean_distance(X)
-        if measure_efficiency:  # mediciones de tiempo
-            self.t_diff_distancias_og = (time.time_ns()-t_0)*1e-9
-        
-        #====p===================================================================================================================================================
-        if measure_efficiency:  # mediciones de tiempo
-            t_0 = time.time_ns()
-        p = similarities.joint_probabilities_gaussian(dist_original, self.perplexity, self.perplexity_tolerance)
-        if measure_efficiency:  # mediciones de tiempo
-            self.t_diff_p = (time.time_ns()-t_0)*1e-9
-        
-
         if self.init_embed is None:
             self.init_embed = self.__rand_embed(n_samples=len(X), n_dimensions=self.n_dimensions)
 
-        self.__gradient_descent(self.max_iter, p, compute_cost, measure_efficiency)
+        #====Ajuste del learning rate============================================================================================================================
+        if isinstance(self.learning_rate, str):
+            self.learning_rate = np.floor(len(X)/self.early_exaggeration)
+        else:
+            self.learning_rate = max(self.learning_rate, np.floor(len(X)/self.early_exaggeration))
 
-        if self.verbose>0:
-            print_efficiency(t0_g, time.time_ns(), n_iters=self.max_iter, n_ms_digits=6)
-
-        if classes is not None:
-            self.element_classes = classes
-
+        #====Tiempo de inicio para verbosidad====================================================================================================================
+        t0 = time.time_ns()
         
-        result = np.array(self.embed_history[-1])
+        #====Obtener P===========================================================================================================================================
+        dist_original = similarities.pairwise_euclidean_distance(X) #solo es necesario para calcular P
+        p = similarities.joint_probabilities_gaussian(dist_original, self.perplexity, self.perplexity_tolerance)
+        del(dist_original) #dist_original ya no hace falta
+
+        #====Descenso de gradiente===============================================================================================================================
+        self.__gradient_descent(self.max_iter, p, compute_cost)
+        del(p)
+        #====Salida por consola de verbosidad====================================================================================================================
+        if self.verbose>0:
+                print("=================================================================")
+                print("Embedding process finished")
+                t_diff = (time.time_ns()-t0)*1e-9
+                t_diff_clean = time.gmtime(t_diff)
+                t_diff_exact_ms = t_diff - t_diff_clean.tm_sec
+                print("Execution time (min:sec): {}.{}".format(time.strftime("%M:%S", t_diff_clean), str(t_diff_exact_ms)[2:8]))
+                t_iter = t_diff/self.max_iter
+                del(t_diff, t_diff_clean, t_diff_exact_ms)
+                t_iter_clean = time.gmtime(t_iter)
+                t_iter_exact_ms = t_iter - t_iter_clean.tm_sec
+                print("Time/Iteration (s): {}.{}".format(time.strftime("%S", t_iter_clean), str(t_iter_exact_ms)[2:8]))
+                print("=================================================================")
+                del(t_iter, t_iter_clean, t_iter_exact_ms)
+        del(t0)
+
+        #====Establecer indicador de que se ha hecho el embedding================================================================================================
         self.fitting_done = True
 
-        if compute_cost:
-            aux = np.argmin(self.cost_history)
-            if aux==len(self.cost_history)-1:
-                self.best_iter_cost = -1
-            else:
-                self.best_iter_cost = max(0, (aux-1)*self.iters_check)
-
-        
-        if measure_efficiency:  # mediciones de tiempo
-            self.__print_time_analytics()
-
-        return result
-    def __gradient_descent(self, t, p, compute_cost=True, measure_efficiency=False):
-        y = self.init_embed
+        return np.array(self.current_embed)
+    def __gradient_descent(self, t, p, compute_cost=True):
+        self.current_embed = np.copy(self.init_embed)
         
         #====dist_embed==========================================================================================================================================
-        if measure_efficiency:  # mediciones de tiempo
-            t_0 = time.time_ns()
-        dist_embed = similarities.pairwise_euclidean_distance(y)
-        if measure_efficiency:  # mediciones de tiempo
-            aux = (time.time_ns()-t_0)*1e-9
-            self.t_diff_dist_embed.append(aux); self.t_diff_dist_embed.append(aux)
+        self.current_embed_dist = similarities.pairwise_euclidean_distance(self.current_embed)
         
         #====q===================================================================================================================================================
-        if measure_efficiency:  # mediciones de tiempo
-            t_0 = time.time_ns()
-        q = similarities.joint_probabilities_student(dist_embed)
-        if measure_efficiency:  # mediciones de tiempo
-            aux = (time.time_ns()-t_0)*1e-9
-            self.t_diff_q.append(aux); self.t_diff_q.append(aux)
+        q = similarities.joint_probabilities_student(self.current_embed_dist)
         
-        self.prev_embed_dist = dist_embed
-        self.embed_history.append(y); self.embed_history.append(y)
-        self.embed_dist_history.append(dist_embed); self.embed_dist_history.append(dist_embed)
-        self.q_history.append(q); self.q_history.append(q)
+        
+        # self.embed_history.append(self.current_embed); self.embed_history.append(self.current_embed)
+        # self.embed_dist_history.append(self.prev_embed_dist); self.embed_dist_history.append(self.prev_embed_dist)
+        # self.q_history.append(q); self.q_history.append(q)
+
+        
 
         if compute_cost:
             cost = kl_divergence(p, q)
+            self.best_cost_iter = 1
+            self.best_cost_embed = np.copy(self.current_embed)
             self.cost_history.append(cost); self.cost_history.append(cost)
-            self.cost_history_embed.append(y); self.cost_history_embed.append(y)
+            # self.cost_history_embed.append(self.current_embed); self.cost_history_embed.append(self.current_embed)
 
         lr = self.learning_rate
-        early = self.early_exaggeration
+        # early = self.early_exaggeration
         momentum = self.momentum_params[1]
-
+        previous_embed = np.copy(self.current_embed)
         for i in range(2,t):
             #====grad================================================================================================================================================
-            if measure_efficiency:  # mediciones de tiempo
-                t_0 = time.time_ns()
-            
-            grad = gradient(p, q*early, y, dist_embed, caso="safe")
+            # grad = gradient(p, q*early, self.current_embed, self.current_embed_dist, caso="forces")
+            grad = gradient(p, q, self.current_embed, self.current_embed_dist, caso="forces")
 
-            if measure_efficiency:  # mediciones de tiempo
-                self.t_diff_grad.append((time.time_ns()-t_0)*1e-9)
-            
             #====embed===============================================================================================================================================
             #y{i} = y{i-1} + learning_rate*gradiente + momentum(t) * (y{i-1} - y{i-2})
-            y = self.embed_history[-1] - lr*grad + momentum*(self.embed_history[-1]-self.embed_history[-2])
+            # y = self.embed_history[-1] - lr*grad + momentum*(self.embed_history[-1]-self.embed_history[-2])
+            new_y = self.current_embed - lr*grad + momentum*(self.current_embed-previous_embed)
 
             #====momentum change=====================================================================================================================================
             if i==self.momentum_params[0]:
-                early = 1
+                # early = 1
                 momentum = self.momentum_params[2]
 
             #====dist_embed==========================================================================================================================================
-            if measure_efficiency:  # mediciones de tiempo
-                t_0 = time.time_ns()
-            dist_embed = similarities.pairwise_euclidean_distance(y)
-            if measure_efficiency:  # mediciones de tiempo
-                self.t_diff_dist_embed.append((time.time_ns()-t_0)*1e-9)
-            
-            
+            self.current_embed_dist = similarities.pairwise_euclidean_distance(new_y)
             #====q===================================================================================================================================================
-            if measure_efficiency:  # mediciones de tiempo
-                t_0 = time.time_ns()
-            q = similarities.joint_probabilities_student(dist_embed)
-            if measure_efficiency:  # mediciones de tiempo
-                self.t_diff_q.append((time.time_ns()-t_0)*1e-9)
+            q = similarities.joint_probabilities_student(self.current_embed_dist)
             
             
-            self.embed_history.append(y)
-            self.prev_embed_dist = dist_embed
-            self.embed_dist_history.append(dist_embed)
-            self.q_history.append(q)
+            
+            # self.embed_history.append(new_y)
+            # self.embed_dist_history.append(self.prev_embed_dist)
+            # self.q_history.append(q)
 
             if compute_cost:
                 if i%self.iters_check==0 or i==t-1:
                     cost = kl_divergence(p, q)
+                    if cost<np.min(self.cost_history):
+                        self.best_cost_iter = i
+                        self.best_cost_embed = np.copy(new_y)
                     self.cost_history.append(cost)
-                    self.cost_history_embed.append(y)
-                
-
-    def display_embed(self, *, display_best_iter_cost=False, t:int=-1, title=None):
-        """Displays the resulting embedding.
-
-        Parameters
-        ----------
-        display_best_iter: bool, Optional.
-            Whether or not to display the iteration with the lowest cost.
-            If True, the "t" parameter is ignored
-        t: int, Optional.
-            The embedding iteration to display.
-        """
-        assert self.fitting_done
-        if display_best_iter_cost:
-            t = self.best_iter_cost
-        elif t not in range(-1,self.max_iter):
-            raise ValueError("Cannot show embedding for values of t that are not within the range [-1, {})=".format(self.max_iter))
-        
-        embed = np.array(self.embed_history[t])
-        embed_T = embed.T
-
-        if self.element_classes is not None:
-            labels = self.element_classes.astype(str)
-        match self.n_dimensions:
-            case 3:
-                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-                x = embed_T[0]
-                y = embed_T[1]
-                z = embed_T[2]
-                if self.element_classes is not None:
-                    for i in range(0,x.shape[0]):
-                        ax.plot(x[i],y[i],z[i], label=labels[i], marker='o',linestyle='', markersize=5)
-                    
-                    handles, labels = ax.get_legend_handles_labels()
-                    unique = [(h, l) for i, (h, l) in enumerate(zip(handles, labels)) if l not in labels[:i]]
-                    ax.legend(*zip(*unique), draggable=True)
-                else:
-                    for i in range(0,x.shape[0]):
-                        ax.plot(x[i],y[i],z[i], marker='o',linestyle='', markersize=8)
-            case 2:
-                x = embed_T[0]
-                y = embed_T[1]
-
-                if self.element_classes is not None:
-                    for i in range(len(x)):
-                        plt.plot(x[i],y[i],marker='o',linestyle='', markersize=5, label=labels[i])
-                    handles, labels = plt.gca().get_legend_handles_labels()
-                    by_label = dict(zip(labels, handles))
-                    plt.legend(by_label.values(), by_label.keys(), draggable=True)
-                else:
-                    for i in range(len(x)):
-                        plt.plot(x[i],y[i],marker='o',linestyle='', markersize=8)
-                print("")
-            case 1:
-                x = embed
-                y = np.ones_like(x)
-
-                if self.element_classes is not None:
-                    for i in range(len(x)):
-                        plt.plot(x[i],y[i],marker='o',linestyle='', markersize=5, label=labels[i])
-                    handles, labels = plt.gca().get_legend_handles_labels()
-                    by_label = dict(zip(labels, handles))
-                    plt.legend(by_label.values(), by_label.keys(), draggable=True)
-                else:
-                    for i in range(0,x.shape[0]):
-                        plt.plot(x[i],y[i],marker='o',linestyle='', markersize=8)
-            case _:
-                raise ValueError("Display of embedding not available for more than 3 dimensions. I am limited by the technology of my time")
+                    # self.cost_history_embed.append(y)
             
-        if t==-1:
-            t = len(self.embed_history)
+            #actualizar y(t-1), y(t-2)
+            previous_embed = np.copy(self.current_embed)
+            self.current_embed = np.copy(new_y)
 
-        if title is None:
-            if display_best_iter_cost:
-                title = "Best embedding for kl divergence, achieved at t={} out of {} iterations".format(t, self.max_iter)
-            else:
-                title = "Embedding at t={} out of {} iterations".format(t, self.max_iter)
-        plt.title(title)
-        plt.show()
-    
-    #===Devolver embeddings especificos==============================================================================
-    def get_final_embedding(self) -> np.ndarray:
-        assert self.fitting_done
-        return self.embed_history[-1]
     def get_best_embedding_cost(self) -> np.ndarray:
         assert self.fitting_done
-        return self.embed_history[self.best_iter_cost]
+        return self.best_cost_embed
+
     
-    #=============Analisis de eficiencia de cada metodo===================================================================================================
-    def __print_time_analytics(self):
-        print("======================================================================")
-    
-        # t_diff_distancias_og = None
-        self.__print_time_diff(self.t_diff_distancias_og, "pairwise_euclidean_distances(data)")
-    
-        # t_diff_p = None
-        self.__print_time_diff(self.t_diff_p, "joint_probabilities_gaussian")
-    
-        # t_diff_dist_embed = []
-        avg_t_diff_dist_embed = self.__compute_average_time(np.array(self.t_diff_dist_embed))
-        self.__print_time_diff(avg_t_diff_dist_embed, "pairwise_euclidean_distances(embed)")
-    
-        # t_diff_q = []
-        avg_t_diff_q = self.__compute_average_time(np.array(self.t_diff_q))
-        self.__print_time_diff(avg_t_diff_q, "joint_probabilities_student")
-    
-        # t_diff_grad = []
-        avg_t_diff_grad = self.__compute_average_time(np.array(self.t_diff_grad))
-        self.__print_time_diff(avg_t_diff_grad, "gradient")
-        print("======================================================================")
-    def __compute_average_time(self, time_list):
-        return np.sum(time_list)/len(time_list)
-    def __print_time_diff(self, t_diff, method):
-        print("{}: {}".format(method, str(t_diff)))
+
     

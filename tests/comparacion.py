@@ -5,28 +5,26 @@ import mytsnelib.utils as ut
 #======================================================#
 #---Parametros para entrenar el modelo-----------------#
 n_dimensions = 2
-perplexity = 30.
-perplexity_tolerance = 1e-10
-metric = "euclidean"
-init_method = "random"
-init_embed = None
-early_exaggeration = 12.
-# lr = 12.
+# perplexity = 50
 lr = "auto"
+early_exaggeration = 12.
 max_iter = 10000
-momentum_params = [250, 0.5, 0.8]
-# momentum_params = [np.floor(max_iter/4), 0.5, 0.8]
 seed = 4
 iters_check = 50
+init_method = "random"
 #---Cosas que mostrar por consola----------------------#
 nivel_verbose=0
 #======================================================#
 
 #===Mio======================================================================#
-def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False, display_best_cost=False, medir_rendimiento=False, print_cost_history=False):
+def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False, display_best_cost=False, print_cost_history=False):
     from mytsnelib import functions
+    #perp = n_vecinos*3
+    perp = np.floor(len(data)/(9))
+    perplexity_tolerance = 1e-10
+    momentum_params = [250, 0.5, 0.8]
     model = functions.TSne(n_dimensions=n_dimensions,
-                        perplexity=perplexity,
+                        perplexity=perp,
                         perplexity_tolerance=perplexity_tolerance,
                         early_exaggeration=early_exaggeration,
                         learning_rate=lr,
@@ -35,44 +33,41 @@ def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False,
                         seed=seed,
                         verbose=nivel_verbose,
                         iters_check=iters_check)
-    data_embedded = model.fit(data,classes=labels, compute_cost=calcular_coste, measure_efficiency=medir_rendimiento)
+    data_embedded = model.fit(data, compute_cost=calcular_coste)
     
     if display:
         if calcular_coste and display_best_cost:
-            indice = np.argmin(model.cost_history)
-            embed = model.cost_history_embed[indice]
-            if indice<len(model.cost_history)-1:
-                title = "Iteración con mejor coste: {}/{}".format(max(0, model.iters_check*(indice-1)), max_iter)
-            else:
-                title = "Iteración con mejor coste: {}".format(max_iter)
+            title = "Iteración con mejor coste: {}/{}".format(model.best_cost_iter, max_iter)
+            embed = np.copy(model.best_cost_embed)
         else:
             title = "Mostrando embedding final"
             embed = np.copy(data_embedded)
         ut.display_embed(embed, labels, title=title)
     
-    if print_cost_history:
+    if print_cost_history and calcular_coste:
         historia_coste = np.array(model.cost_history)
-        if len(historia_coste)>0:
-            # print("Cost history:")
-            # print("{}".format(historia_coste))
-            # for i in range(1, len(historia_coste)):
-            #     if historia_coste[i]>historia_coste[i-1]:
-            #         print("-------------------------------------------------------------------")
-            #         print("Coste {} > Coste {}".format(i+1, i))
-            #         print("Coste {}: {}".format(i+1, historia_coste[i]))
-            #         print("Coste {}: {}".format(i, historia_coste[i-1]))
-            # print("-------------------------------------------------------------------")
-            print("Coste minimo, {}/{}: {}".format(np.argmin(historia_coste)+1, len(historia_coste), np.min(historia_coste)))
-            print("Ultimo coste: {}".format(historia_coste[-1]))
-            print("===================================================================")
+        # print("Cost history:")
+        # print("{}".format(historia_coste))
+        # for i in range(1, len(historia_coste)):
+        #     if historia_coste[i]>historia_coste[i-1]:
+        #         print("-------------------------------------------------------------------")
+        #         print("Coste {} > Coste {}".format(i+1, i))
+        #         print("Coste {}: {}".format(i+1, historia_coste[i]))
+        #         print("Coste {}: {}".format(i, historia_coste[i-1]))
+        # print("-------------------------------------------------------------------")
+        print("Coste minimo, {}/{}: {}".format(np.argmin(historia_coste)+1, len(historia_coste), np.min(historia_coste)))
+        print("Ultimo coste: {}".format(historia_coste[-1]))
+        print("===================================================================")
 
 #===Scikit-learn=============================================================#
 def probar_sklearn(data, labels, *, display=False, title=None):
     import sklearn.manifold as mnf
+    perp = np.floor(len(data)/9)
     model = mnf.TSNE(n_components=n_dimensions,
-                     learning_rate='auto',
-                     init='random',
-                     perplexity=perplexity,
+                     learning_rate=lr,
+                     init=init_method,
+                     perplexity=perp,
+                     early_exaggeration=early_exaggeration,
                      verbose=nivel_verbose)
     data_embedded = model.fit_transform(data)
 
@@ -156,7 +151,8 @@ def probar_bht(data, labels, *, verbose=1, display=False, title=None):
 
 def probar_open(data, labels, *, verbose=1, display=False, title=None):
     import openTSNE
-    embedding_open = openTSNE.TSNE(n_iter=max_iter, n_components=n_dimensions, perplexity=perplexity).fit(data)
+    perp = np.floor(len(data)/9)
+    embedding_open = openTSNE.TSNE(n_iter=max_iter, n_components=n_dimensions, perplexity=perp).fit(data)
 #=======================================================================================================#
 #=======================================================================================================#
 #=======================================================================================================#
