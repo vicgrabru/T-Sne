@@ -72,15 +72,19 @@ def display_embed(embed, labels, *, title=None):
 
 def print_tiempo(t, metodo="Mio", n_digits_ms=6):
     t_exact = np.floor(t)
-    tS = str(t_exact%60 + (t - t_exact))[:n_digits_ms+2]
+    tMS = str(t-t_exact)[2:n_digits_ms+2]
+    tS = int(t_exact%60)
     tM = int(np.floor(t_exact/60)%60)
     tH = int(np.floor(t_exact/3600))
+    stringS = "{}.{}".format(tS,tMS)
+    if tS<10:
+        stringS = "0"+stringS
     print("=====================================================")
     print(metodo + " finished")
     if t_exact>60:
         if t_exact<3600: # <1h
-            print("Execution time (min:sec): {}:{}".format(tM,tS))
+            print("Execution time (min:sec): {}:{}".format(tM,stringS))
         else:
-            print("Execution time (h:min:sec): {}:{}:{}".format(tH,tM,tS))
+            print("Execution time (h:min:sec): {}:{}:{}".format(tH,tM,stringS))
     print("Execution time (s): {}".format(t))
     print("=====================================================")

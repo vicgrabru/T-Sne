@@ -6,22 +6,26 @@ import gc
 
 
 #===Gradiente====================================================================================================
-def gradient(P, Q, y, y_dist, caso="safe") -> np.ndarray:
+def gradient(P, Q, y, y_dist, not_diag, caso="safe") -> np.ndarray:
     match caso:
         case "safe":
-            result = __gradient_safe(P,Q,y,y_dist)
+            # result = __gradient_safe(P,Q,y,y_dist)
+            return __gradient_safe(P,Q,y,y_dist,not_diag)
         case "forces":
-            result = __gradient_forces(P,Q,y,y_dist)
+            # result = __gradient_forces(P,Q,y,y_dist)
+            return __gradient_forces(P,Q,y,y_dist)
         case "forces_v2":
-            result = __gradient_forces_v2(P,Q,y,y_dist)
+            # result = __gradient_forces_v2(P,Q,y,y_dist)
+            return __gradient_forces_v2(P,Q,y,y_dist)
         case _:
             raise ValueError("Only accepted cases are safe, forces, and forces_v2")
-    return result
+    # return result
 #----------------------------------------------------------------------------------------------------------------
-def __gradient_safe(P, Q, y, y_dist) -> np.ndarray:
+def __gradient_safe(P, Q, y, y_dist, not_diag) -> np.ndarray:
     # p - q, diagonal a 0 porque el sumatorio ignora los casos de i=j
     pq_diff = P-Q
-    np.fill_diagonal(pq_diff, 0)
+    extra = pq_diff.copy()
+    np.fill_diagonal(extra, 0)
 
     # y_diff[i][j][k] = y[i][k] - y[j][k]
     y_diff =  np.expand_dims(y,1)-np.expand_dims(y,0)
@@ -32,7 +36,21 @@ def __gradient_safe(P, Q, y, y_dist) -> np.ndarray:
     # aux2[i][j][k] = (p[i][j]-q[i][j])*(y[i][k]-y[j][k])*((1+distancia[i][j])^(-1))
     aux2 = np.expand_dims(pq_diff, 2) * y_diff * np.expand_dims(aux,2)
     
-    result = 4 * np.sum(aux2, axis=1)
+    condicion = np.expand_dims(not_diag, axis=2)
+
+    result = 4 * aux2.sum(axis=1, where=condicion)
+
+    
+    extra2_ = np.expand_dims(extra, 2) * y_diff * np.expand_dims(aux,2)
+
+    extra2 = 4*extra2_.sum(axis=1)
+
+    if np.array_equal(result, extra2):
+        print("Bien")
+    else:
+        print("Mal")
+    exit(0)
+
     return result
 def __gradient_forces(P, Q, y, y_dist) -> np.ndarray:
     y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
@@ -175,8 +193,9 @@ class TSne():
         
         #===parametros auxiliares====================================================================================
         self.cost_history = []
-        self.best_cost_iter = None
-        self.best_cost_embed = None
+        self.best_iter = None
+        self.best_embed = None
+        self.best_cost = None
         self.fitting_done = False
 
     def __input_validation(self,n_dimensions,perplexity,perplexity_tolerance,metric,init_method,init_embed,
@@ -196,8 +215,8 @@ class TSne():
             elif n_dimensions>3:
                 print("**Warning: If you use more than 3 dimensions, you will not be able to display the embedding**")
         if perplexity is not None: # perplexity: float
-            if not isinstance(perplexity, float):
-                raise ValueError("perplexity must be of float type")
+            if not isinstance(perplexity, (int,float)):
+                raise ValueError("perplexity must a number")
             elif perplexity in invalid_numbers:
                 raise ValueError("perplexity cannot be infinite or NaN")
             elif perplexity <= 0.:
@@ -325,9 +344,7 @@ class TSne():
         """
         assert n_samples is not None
         assert n_dimensions is not None
-        result = self.rng.standard_normal(size=(n_samples, n_dimensions))
-        # result = self.random_state.standard_normal(size=(n_samples, n_dimensions))
-        return result
+        return self.rng.standard_normal(size=(n_samples, n_dimensions))
 
     def fit(self, input, compute_cost=True) -> np.ndarray:
         """Fit the given data and perform the embedding
@@ -342,7 +359,7 @@ class TSne():
 
         #====Input con dimensiones correctas y embed inicial=====================================================================================================
         X = self.__fit_input_validation(input, embed=self.init_embed)
-        
+        not_diag = np.identity(len(X))!=1
         #====Ajuste del learning rate============================================================================================================================
         if self.learning_rate == "auto":
             self.lr = X.shape[0] / self.early_exaggeration
@@ -355,12 +372,12 @@ class TSne():
         
         #====Obtener P===========================================================================================================================================
         dist_original = similarities.pairwise_euclidean_distance(X) #solo es necesario para calcular P
-        p = similarities.joint_probabilities_gaussian(dist_original, self.perplexity, self.perplexity_tolerance)
+        p = similarities.joint_probabilities_gaussian(dist_original, self.perplexity, not_diag, self.perplexity_tolerance)
         
         del dist_original #dist_original ya no hace falta
 
         #====Descenso de gradiente===============================================================================================================================
-        final_embed = self.__gradient_descent(self.max_iter, p, compute_cost)
+        final_embed = self.__gradient_descent(self.max_iter, p, not_diag, compute_cost)
         
         #====Salida por consola de verbosidad====================================================================================================================
         if self.verbose>0:
@@ -394,25 +411,27 @@ class TSne():
     
 
 
-    def __gradient_descent(self, t, p, compute_cost=True):
+    def __gradient_descent(self, t, p, not_diag, compute_cost=True):
+        n_samples_ = len(p)
         if self.init_embed is None:
-            self.init_embed = self.__rand_embed(n_samples=len(p), n_dimensions=self.n_dimensions)
+            self.init_embed = self.__rand_embed(n_samples=n_samples_, n_dimensions=self.n_dimensions)
         
         current_embed = np.copy(self.init_embed)
-        
+
         #====dist_embed==========================================================================================================================================
         current_embed_dist = similarities.pairwise_euclidean_distance(current_embed)
         
         #====q===================================================================================================================================================
-        q = similarities.joint_probabilities_student(current_embed_dist)
+        q = similarities.joint_probabilities_student(current_embed_dist, not_diag)
 
         
-
+        
         if compute_cost:
             cost = kl_divergence(p, q)
-            self.best_cost_iter = 1
-            self.best_cost_embed = np.copy(current_embed)
-            self.cost_history.append(cost); self.cost_history.append(cost)
+            best_iter_ = 1
+            best_cost_ = cost
+            best_embed_ = np.reshape(current_embed, (-1), order='C')
+            cost_history_ = [cost, cost]
 
         lr = self.lr
         early = self.early_exaggeration
@@ -425,7 +444,7 @@ class TSne():
                 print("---------------------------------")
                 print("Comenzando iteracion {}/{}".format(i,t))
             #====grad================================================================================================================================================
-            grad = gradient(p, q*early, current_embed, current_embed_dist, caso="safe")
+            grad = gradient(p, q*early, current_embed, current_embed_dist, not_diag, caso="safe")
 
             #====embed===============================================================================================================================================
             #y{i} = y{i-1} + learning_rate*gradiente + momentum(t) * (y{i-1} - y{i-2})
@@ -440,25 +459,30 @@ class TSne():
             #====dist_embed==========================================================================================================================================
             current_embed_dist = similarities.pairwise_euclidean_distance(new_embed)
             #====q===================================================================================================================================================
-            q = similarities.joint_probabilities_student(current_embed_dist)
+            q = similarities.joint_probabilities_student(current_embed_dist, not_diag)
             
             if compute_cost:
                 if i%self.iters_check==0 or i==t-1:
                     cost = kl_divergence(p, q)
-                    if cost<np.min(self.cost_history):
-                        self.best_cost_iter = i
-                        self.best_cost_embed = np.copy(new_embed)
-                    self.cost_history.append(cost)
-            
+                    cost_history_.append(cost)
+                    if cost<best_cost_:
+                        best_iter_ = i
+                        best_cost_ = cost
+                        best_embed_ = np.reshape(new_embed,(-1), order='C')
             #actualizar y(t-1), y(t-2)
             previous_embed = np.copy(current_embed)
             current_embed = np.copy(new_embed)
             gc.collect() #liberar memoria despues de cada iteracion
+        if compute_cost:
+            self.best_iter = best_iter_
+            self.best_cost = best_cost_
+            self.best_embed = np.reshape(best_embed_, [n_samples_, self.n_dimensions], order='C')
+            self.cost_history = np.array(cost_history_)
         return current_embed
 
-    def get_best_embedding_cost(self) -> np.ndarray:
+    def get_best_embedding(self) -> np.ndarray:
         assert self.fitting_done
-        return self.best_cost_embed
+        return self.best_cost, self.best_embed, self.best_iter
 
     
 

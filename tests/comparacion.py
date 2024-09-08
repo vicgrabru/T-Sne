@@ -9,7 +9,7 @@ n_dimensions = 2
 # perplexity = 50
 lr = "auto"
 early_exaggeration = 12.
-max_iter = 10000
+max_iter = 1000
 seed = 4
 iters_check = 50
 init_method = "random"
@@ -19,11 +19,11 @@ nivel_verbose=0
 #======================================================#
 
 #===Mio======================================================================#
-def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False, display_best_cost=False, print_cost_history=False, print_tiempo=False):
+def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False, print_cost_history=False, print_tiempo=False):
     verbosidad = 0 if print_tiempo else nivel_verbose
     from mytsnelib import functions
-    #perp = n_vecinos*3
-    perp = np.floor(len(data)/(3*fraccionDatosVecinos))
+    #perp = np.floor(len(data)/(3*fraccionDatosVecinos))
+    perp = 40
     perplexity_tolerance = 1e-10
     momentum_params = [250, 0.5, 0.8]
     t0 = time.time_ns()
@@ -41,31 +41,32 @@ def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False,
     t_diff = (time.time_ns()-t0)*1e-9
     if print_tiempo:
         ut.print_tiempo(t_diff, metodo="Mio", n_digits_ms=6)
-    if display:
-        if calcular_coste and display_best_cost:
-            title = "Iteración con mejor coste: {}/{}".format(model.best_cost_iter, max_iter)
-            embed = np.copy(model.best_cost_embed)
-        else:
-            title = "Mostrando embedding final"
-            embed = np.copy(data_embedded)
-        ut.display_embed(embed, labels, title=title)
-        del embed,title
-    
     if print_cost_history and calcular_coste:
+        coste, _, it = model.get_best_embedding()
         historia_coste = np.array(model.cost_history)
-        # print("Cost history:")
-        # print("{}".format(historia_coste))
+        print("Cost history:")
+        print("{}".format(historia_coste))
         # for i in range(1, len(historia_coste)):
         #     if historia_coste[i]>historia_coste[i-1]:
         #         print("-------------------------------------------------------------------")
         #         print("Coste {} > Coste {}".format(i+1, i))
         #         print("Coste {}: {}".format(i+1, historia_coste[i]))
         #         print("Coste {}: {}".format(i, historia_coste[i-1]))
-        # print("-------------------------------------------------------------------")
-        print("Coste minimo, {}/{}: {}".format(np.argmin(historia_coste)+1, len(historia_coste), np.min(historia_coste)))
+        print("-------------------------------------------------------------------")
+        print("Coste minimo, i={}({}/{}): {}".format(it, np.floor(it/iters_check), len(historia_coste), coste))
         print("Ultimo coste: {}".format(historia_coste[-1]))
         print("===================================================================")
-        del historia_coste
+    if display:
+        if calcular_coste:
+            _, embed, it = model.get_best_embedding()
+            title = "Iteración con mejor coste: {}/{}".format(it, max_iter)
+        else:
+            title = "Mostrando embedding final"
+            embed = np.copy(data_embedded)
+        ut.display_embed(embed, labels, title=title)
+        del embed,title
+    
+    
     del t_diff,t0
     del data_embedded,model,momentum_params,perp,perplexity_tolerance,verbosidad
 
