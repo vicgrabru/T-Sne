@@ -1,7 +1,7 @@
 import numpy as np
 import mytsnelib.utils as ut
 import tests.comparacion as comp
-
+import gc
 def test_haversine():
     assert True
 
@@ -82,8 +82,10 @@ match caso_prueba:
         comp.probar_autoencoder(data_train, test_data=data_test, test_labels=labels_test, display=display_embed, display_amount=1000, print_tiempo=print_tiempo)
     case "dims":
         test_data_dims(data_entrenamiento)
-    case _:
+    case "otro":
         probar_otra_cosa()
+    case _:
+        gc.collect()
 
 
 
@@ -92,6 +94,6 @@ del data_entrenamiento,labels_entrenamiento,random_indexes,rng,index_start,n_sam
 del data_full,labels_full,data_test,data_train,labels_train,labels_test
 del routes_train,usar_rutas_fragmentadas,skip_start,first_column,n_type
 
-import gc
+
 gc.collect()
 
