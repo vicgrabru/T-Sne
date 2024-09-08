@@ -1,5 +1,6 @@
 import numpy as np
 import mytsnelib.utils as ut
+import time
 
 
 #======================================================#
@@ -12,17 +13,20 @@ max_iter = 10000
 seed = 4
 iters_check = 50
 init_method = "random"
+fraccionDatosVecinos = 3
 #---Cosas que mostrar por consola----------------------#
-nivel_verbose=1
+nivel_verbose=0
 #======================================================#
 
 #===Mio======================================================================#
-def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False, display_best_cost=False, print_cost_history=False):
+def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False, display_best_cost=False, print_cost_history=False, print_tiempo=False):
+    verbosidad = 0 if print_tiempo else nivel_verbose
     from mytsnelib import functions
     #perp = n_vecinos*3
-    perp = np.floor(len(data)/3)
+    perp = np.floor(len(data)/fraccionDatosVecinos)
     perplexity_tolerance = 1e-10
     momentum_params = [250, 0.5, 0.8]
+    t0 = time.time_ns()
     model = functions.TSne(n_dimensions=n_dimensions,
                         perplexity=perp,
                         perplexity_tolerance=perplexity_tolerance,
@@ -31,10 +35,12 @@ def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False,
                         max_iter=max_iter,
                         momentum_params=momentum_params,
                         seed=seed,
-                        verbose=nivel_verbose,
+                        verbose=verbosidad,
                         iters_check=iters_check)
     data_embedded = model.fit(data, compute_cost=calcular_coste)
-    
+    t_diff = (time.time_ns()-t0)*1e-9
+    if print_tiempo:
+        ut.print_tiempo(t_diff, metodo="Mio", n_digits_ms=6)
     if display:
         if calcular_coste and display_best_cost:
             title = "Iteración con mejor coste: {}/{}".format(model.best_cost_iter, max_iter)
@@ -60,24 +66,29 @@ def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False,
         print("===================================================================")
 
 #===Scikit-learn=============================================================#
-def probar_sklearn(data, labels, *, display=False, title=None):
+def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=False):
     import sklearn.manifold as mnf
-    perp = np.floor(len(data)/3)
+    perp = np.floor(len(data)/(3*fraccionDatosVecinos))
+    verbosidad = 0 if print_tiempo else nivel_verbose
+    t0 = time.time_ns()
     model = mnf.TSNE(n_components=n_dimensions,
                      learning_rate=lr,
                      init=init_method,
                      perplexity=perp,
                      early_exaggeration=early_exaggeration,
-                     verbose=nivel_verbose)
+                     verbose=verbosidad)
     data_embedded = model.fit_transform(data)
-
+    t_diff = (time.time_ns()-t0)*1e-9
+    if print_tiempo:
+        ut.print_tiempo(t_diff, metodo="Scikit-learn", n_digits_ms=6)
     if display:
         ut.display_embed(data_embedded, labels, title=title)
 
 #===PCA======================================================================#
-def probar_pca(data, labels, *, display=False, title=None):
+def probar_pca(data, labels, *, display=False, title=None, print_tiempo=False):
     from sklearn.decomposition import PCA
     random_state = np.random.RandomState(seed)
+    t0 = time.time_ns()
     pca = PCA(n_components=n_dimensions, svd_solver="randomized", random_state=random_state)
     # Always output a numpy array, no matter what is configured globally
     pca.set_output(transform="default")
@@ -85,12 +96,15 @@ def probar_pca(data, labels, *, display=False, title=None):
     # PCA is rescaled so that PC1 has standard deviation 1e-4 which is
     # the default value for random initialization. See issue #18018.
     data_embedded = data_embedded / np.std(data_embedded[:, 0]) * 1e-4
+    t_diff = (time.time_ns()-t0)*1e-9
+    if print_tiempo:
+        ut.print_tiempo(t_diff, metodo="PCA", n_digits_ms=6)
 
     if display:
         ut.display_embed(data_embedded, labels, title=title)
 
 #===Autoencoder==============================================================#
-def probar_autoencoder(train_data, test_data, test_labels, *, display=False, title=None, display_amount=-1):
+def probar_autoencoder(train_data, test_data, test_labels, *, display=False, title=None, display_amount=-1, print_tiempo=False):
     import tensorflow as tf
     from keras.api import Sequential
     from keras.api.losses import MeanSquaredError
@@ -124,8 +138,12 @@ def probar_autoencoder(train_data, test_data, test_labels, *, display=False, tit
     
     from keras.api.optimizers import SGD
     sgd = SGD(learning_rate=lr/10000)
+    t0 = time.time_ns()
     autoencoder.compile(optimizer='sgd', loss='mse')
     autoencoder.fit(train_data, train_data, epochs=10, shuffle=True, validation_data=(test_data, test_data), verbose=nivel_verbose)
+    t_diff = (time.time_ns()-t0)*1e-9
+    if print_tiempo:
+        ut.print_tiempo(t_diff, metodo="Autoencoders", n_digits_ms=6)
     
     if display_amount>0:
         rand_indices = np.random.randint(low=0, high=len(test_data), size=display_amount)

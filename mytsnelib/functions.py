@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mytsnelib import similarities
 import time
+import gc
 
 
 #===Gradiente====================================================================================================
@@ -17,13 +18,21 @@ def gradient(P, Q, y, y_dist, caso="safe") -> np.ndarray:
             raise ValueError("Only accepted cases are safe, forces, and forces_v2")
 #----------------------------------------------------------------------------------------------------------------
 def __gradient_safe(P, Q, y, y_dist) -> np.ndarray:
-    pq_diff = P - Q
-    y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
+    # p - q, diagonal a 0 porque el sumatorio ignora los casos de i=j
+    pq_diff = P-Q
+    np.fill_diagonal(pq_diff, 0)
 
-    aux = (1+y_dist)**(-1)
-    result = 4 * np.sum(np.expand_dims(pq_diff, 2) * y_diff * np.expand_dims(aux,2), axis=1)
+    # y_diff[i][j][k] = y[i][k] - y[j][k]
+    y_diff =  np.expand_dims(y,1)-np.expand_dims(y,0)
     
-    del aux, pq_diff, y_diff
+    # (1 + distancias)^-1
+    aux = 1/(1+y_dist)
+    
+    # aux2[i][j][k] = (p[i][j]-q[i][j])*(y[i][k]-y[j][k])*((1+distancia[i][j])^(-1))
+    aux2 = np.expand_dims(pq_diff, 2) * y_diff * np.expand_dims(aux,2)
+    
+    result = 4 * np.sum(aux2, axis=1)
+    del aux,aux2,y_diff,pq_diff
     return result
 def __gradient_forces(P, Q, y, y_dist) -> np.ndarray:
     y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
@@ -153,6 +162,7 @@ class TSne():
         self.metric = metric
         self.init_method = init_method
         self.learning_rate = learning_rate
+        self.lr = None
         self.max_iter = max_iter
         self.init_embed = init_embed
         self.momentum_params = momentum_params
@@ -331,12 +341,12 @@ class TSne():
         #====Input con dimensiones correctas y embed inicial=====================================================================================================
         X = self.__fit_input_validation(input, embed=self.init_embed)
         
-
         #====Ajuste del learning rate============================================================================================================================
-        if isinstance(self.learning_rate, str):
-            self.learning_rate = np.floor(len(X)/self.early_exaggeration)
+        if self.learning_rate == "auto":
+            self.lr = X.shape[0] / self.early_exaggeration
+            self.lr = np.maximum(self.lr, 50)
         else:
-            self.learning_rate = max(self.learning_rate, np.floor(len(X)/self.early_exaggeration))
+            self.lr = self.learning_rate
 
         #====Tiempo de inicio para verbosidad====================================================================================================================
         t0 = time.time_ns()
@@ -379,7 +389,11 @@ class TSne():
         
         #====Establecer indicador de que se ha hecho el embedding================================================================================================
         self.fitting_done = True
-        return np.array(final_embed)
+        gc.collect()
+        return final_embed
+    
+
+
     def __gradient_descent(self, t, p, compute_cost=True):
         if self.init_embed is None:
             self.init_embed = self.__rand_embed(n_samples=len(p), n_dimensions=self.n_dimensions)
@@ -387,16 +401,10 @@ class TSne():
         current_embed = np.copy(self.init_embed)
         
         #====dist_embed==========================================================================================================================================
-
         current_embed_dist = similarities.pairwise_euclidean_distance(current_embed)
         
         #====q===================================================================================================================================================
         q = similarities.joint_probabilities_student(current_embed_dist)
-        
-        
-        # self.embed_history.append(self.current_embed); self.embed_history.append(self.current_embed)
-        # self.embed_dist_history.append(self.prev_embed_dist); self.embed_dist_history.append(self.prev_embed_dist)
-        # self.q_history.append(q); self.q_history.append(q)
 
         
 
@@ -405,25 +413,25 @@ class TSne():
             self.best_cost_iter = 1
             self.best_cost_embed = np.copy(current_embed)
             self.cost_history.append(cost); self.cost_history.append(cost)
-            # self.cost_history_embed.append(self.current_embed); self.cost_history_embed.append(self.current_embed)
 
-        lr = self.learning_rate
+        lr = self.lr
         early = self.early_exaggeration
         iter_threshold = int(self.momentum_params[0])
         momentum = self.momentum_params[1]
         previous_embed = np.copy(current_embed)
+        
         for i in range(2,t):
             if self.verbose>1 and i%self.iters_check==0:
                 print("---------------------------------")
                 print("Comenzando iteracion {}/{}".format(i,t))
             #====grad================================================================================================================================================
-            grad = gradient(p, q*early, current_embed, current_embed_dist, caso="forces")
+            grad = gradient(p, q*early, current_embed, current_embed_dist, caso="safe")
 
             #====embed===============================================================================================================================================
             #y{i} = y{i-1} + learning_rate*gradiente + momentum(t) * (y{i-1} - y{i-2})
             # y = self.embed_history[-1] - lr*grad + momentum*(self.embed_history[-1]-self.embed_history[-2])
             new_embed = current_embed - lr*grad + momentum*(current_embed-previous_embed)
-
+            del grad
             #====momentum change=====================================================================================================================================
             if i==iter_threshold:
                 early = 1
@@ -452,6 +460,7 @@ class TSne():
             #actualizar y(t-1), y(t-2)
             previous_embed = np.copy(current_embed)
             current_embed = np.copy(new_embed)
+            gc.collect() #liberar memoria despues de cada iteracion
         
 
         del lr,early,iter_threshold,momentum,previous_embed,current_embed_dist,q

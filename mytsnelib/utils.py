@@ -2,6 +2,7 @@ import csv
 import collections.abc as abc
 import numpy as np
 import matplotlib.pyplot as plt
+import gc
 
 
 def read_csv(route, *, labels_in_first_column=False, num_type=np.int8, skip_start_row=False):
@@ -34,6 +35,7 @@ def read_csv(route, *, labels_in_first_column=False, num_type=np.int8, skip_star
         for r in route:
             data_full.append(np.loadtxt(r, num_type, delimiter=',', skiprows=start_index, ndmin=2))
         data = np.vstack(data_full)
+        del data_full
     else:
         raise ValueError("Route must be either a str or a sequence of str")
     if labels_in_first_column:
@@ -42,6 +44,7 @@ def read_csv(route, *, labels_in_first_column=False, num_type=np.int8, skip_star
     else:
         labels = data.T[-1]
         samples = data[:,:-1]
+    del start_index,data; gc.collect()
     return np.asarray(samples), np.asarray(labels)
 
 
@@ -65,3 +68,19 @@ def display_embed(embed, labels, *, title=None):
     if title is not None:
         plt.title(title)
     plt.show()
+
+
+def print_tiempo(t, metodo="Mio", n_digits_ms=6):
+    t_exact = np.floor(t)
+    tS = str(t_exact%60 + (t - t_exact))[:n_digits_ms+2]
+    tM = int(np.floor(t_exact/60)%60)
+    tH = int(np.floor(t_exact/3600))
+    print("=====================================================")
+    print(metodo + " finished")
+    if t_exact>60:
+        if t_exact<3600: # <1h
+            print("Execution time (min:sec): {}:{}".format(tM,tS))
+        else:
+            print("Execution time (h:min:sec): {}:{}:{}".format(tH,tM,tS))
+    print("Execution time (s): {}".format(t))
+    print("=====================================================")

@@ -1,79 +1,7 @@
 import numpy as np
-#===Array checks===========================================================
-def check_nan_inf(x:np.ndarray, check_neg=False):
-    if np.nan in x:
-        raise ValueError("NaN in array")
-    if np.inf in x:
-        raise ValueError("inf in array")
-    if check_neg and len(np.where(x<0)[0])>0:
-        raise ValueError("array cant have negative values")
-def check_arrays_compatible(X:np.ndarray,Y:np.ndarray=None,X_dot_product:np.ndarray=None,Y_dot_product:np.ndarray=None) -> tuple[np.ndarray]:
-    """Returns the X and Y arrays so they are compatible for the distance calculation
-    
-    Parameters
-    ----------
-    X : {array-like, sparse matrix} of shape (n_samples_X, n_features)
-        An array where each row is a sample and each column is a feature.
-
-    Y : {array-like, sparse matrix} of shape (n_samples_Y, n_features), \
-            default=None
-        An array where each row is a sample and each column is a feature.
-        Optional. If None, it assumes `Y=X`.
-
-    Returns
-    -------
-    X : ndarray version of X.
-
-    Y : ndarray version of Y.
-    """
-    check_nan_inf(X)
-    if Y==None:
-        Y = X
-    else:
-        check_nan_inf(Y)
-    
-    if X.shape[1] != Y.shape[1]:
-        raise ValueError("Arrays must contain the same number of columns.")
-    if X.dtype != Y.dtype:
-        raise ValueError("Arrays must be of the same data type.")
-    
-    if X_dot_product is None:
-        X_dot_product = (X*X).sum(axis=1)
-    else:
-        if X_dot_product.shape[1] != len(X):
-            raise ValueError("X_dot_products must be of shape (X.rows, 1).")
-        if X_dot_product.dtype != X.dtype:
-            raise ValueError("X_dot_products must be of the same data type as X.")
-        check_nan_inf(X_dot_product)
-
-    if Y_dot_product is None:
-        Y_dot_product = (Y * Y).sum(axis=1)
-    else:
-        if Y_dot_product.shape[1] != len(Y):
-            raise ValueError("Y_dot_products must be of shape (Y.rows, 1).")
-        if Y_dot_product.dtype != Y.dtype:
-            raise ValueError("Y_dot_products must be of the same data type as Y.")
-        check_nan_inf(Y_dot_product)
-    
-    
-    return X,Y,X_dot_product,Y_dot_product
-def check_arrays_compatible_2(X,Y=None) -> tuple[np.ndarray]:
-    if not isinstance(X, np.ndarray):
-        X = np.array(X)
-    check_nan_inf(X)
-    if Y==None:
-        Y = X
-    else:
-        check_nan_inf(Y)
-    
-    if X.shape[1] != Y.shape[1]:
-        raise ValueError("Arrays must contain the same number of columns.")
-    if X.dtype != Y.dtype:
-        raise ValueError("Arrays must be of the same data type.")
-    return X,Y
-
+import gc
 #===Euclidean Distance=====================================================
-def pairwise_euclidean_distance(X, *, sqrt=False, inf_diag=False) -> np.ndarray:
+def pairwise_euclidean_distance(X, *, sqrt=False) -> np.ndarray:
     """Compute the euclidean distances between the vectors of the given input.
     Parameters
     ----------
@@ -85,38 +13,24 @@ def pairwise_euclidean_distance(X, *, sqrt=False, inf_diag=False) -> np.ndarray:
     distances : ndarray of shape (n_samples_X, n_samples_X)
         Returns the distances between the row vectors of `X`.
     """
-    
     X = np.nan_to_num(X)
-    
-    # check_nan_inf(X)
-    # X = np.array(X)
-
-    
 
     espacio_maybe = len(X)*len(X)*X.dtype.itemsize
     if espacio_maybe>9e9:
         print("Espacio que iba a ocupar: {} GB".format(espacio_maybe/1e9))
         raise ValueError("No")
+    
 
-    espacio_memoria_bits = len(X)*len(X)*X.shape[1]*X.dtype.itemsize
-    if espacio_memoria_bits<7e9:
+    if espacio_maybe*X.shape[1]<7e9:
         # rapido pero consume un cristo y medio de memoria
-        result = np.sum((X[None, :] - X[:, None])**2, 2)
+        aux = np.sum(np.square(np.expand_dims(X,0) - np.expand_dims(X,1)), 2)
     else:
         X_cuadrado = np.sum(np.square(X), axis=1)
         Y_cuadrado = np.reshape(X_cuadrado, [-1,1])
         producto = np.dot(X, X.T)
-        result = X_cuadrado - 2*producto + Y_cuadrado
+        aux = X_cuadrado - 2*producto + Y_cuadrado
         del X_cuadrado, Y_cuadrado, producto
-
-    if sqrt:
-        result = np.sqrt(result)
-    else:
-        result = np.abs(result)
-    if inf_diag:
-        np.fill_diagonal(result, np.inf)
-    
-    return result
+    return np.sqrt(aux) if sqrt else np.abs(aux)
 
 
 
@@ -178,21 +92,22 @@ def search_deviations(distances:np.ndarray, perplexity=10., tolerance=0.1, iters
     -------
     deviation : ndarray of shape (1, n_samples) of the Standard Deviations for each point.
     """
-    result = []
+    result = np.zeros(len(distances))
     for i in range(len(distances)):
         func = lambda dev: __perplexity(__conditional_p(distances[i:i+1, :], np.array([dev])))
-        result.append(__search_deviation_indiv(func, perplexity, tolerance, iters))
-    return np.array(result)
+        result[i] = __search_deviation_indiv(func, perplexity, tolerance, iters)
+    return result
 def __search_deviation_indiv(func, perplexity_goal, tolerance, iters, *, min_deviation=1e-20, max_deviation=10000.) -> float:
     for _ in range(iters):
         new_deviation = np.mean([min_deviation, max_deviation])
         diff = func(new_deviation) - perplexity_goal
-        if abs(diff) <= tolerance:
-            return new_deviation
         if diff > 0:
             max_deviation = new_deviation
         else:
             min_deviation = new_deviation
+        
+        if abs(diff) <= tolerance:
+            return new_deviation
     return new_deviation
 
 #---Perplexity-------------------------------------------------------------
@@ -201,10 +116,11 @@ def __perplexity(cond_p:np.ndarray) -> np.ndarray:
     following the formula
     Perp(P_i) = 2**(-sum( p_{j|i}*log_2(p_{j|i})))
     """
-    aux = cond_p*np.log2(cond_p)
-    result = 2**(-np.sum(np.nan_to_num(aux)))
+    
+    entropy = -np.sum(cond_p*np.nan_to_num(np.log2(cond_p)), 1)
+    result = 2**entropy
 
-    del aux
+    del entropy
     return result
 #---Conditional Probabilities----------------------------------------------
 def __conditional_p(distances:np.ndarray, sigmas:np.ndarray) -> np.ndarray:
@@ -212,7 +128,7 @@ def __conditional_p(distances:np.ndarray, sigmas:np.ndarray) -> np.ndarray:
     using the distances and standard deviations 
     """
     
-    d1 = np.exp(distances/(-2*np.square(np.reshape(sigmas, [-1,1]))))
+    d1 = np.exp(-distances/(2*np.square(np.reshape(sigmas, [-1,1]))))
     d2 = np.copy(d1)
     np.fill_diagonal(d2, 0)
     # d1+=1e-8
@@ -244,14 +160,16 @@ def joint_probabilities_student(distances:np.ndarray)-> np.ndarray:
     -------
     probabilities : ndarray of shape (n_samples, n_samples) that contains the joint probabilities between the points given.
     """
-    d1 = (1+distances)**(-1)
+    d1 = 1/(1+distances)
     d2 = np.copy(d1)
 
     np.fill_diagonal(d2, 0)
     
     result = d1/np.sum(d2)
+
+    result[result<0] = 0
+
     del d1, d2
-    result[result<=0] = 0
     return result
 
 #===Vecinos mas cercanos===================================================
@@ -270,7 +188,7 @@ def get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:
         for rank in range(0, neighbors):
             j = indices_sorted[i][rank]
             result[i][j] = rank+1
-    del n,neighbors,indices_sorted
+    del n,neighbors,indices_sorted; gc.collect()
     return result
 
 def get_neighbor_ranking_by_distance_fast(distances) -> np.ndarray:
@@ -284,5 +202,5 @@ def get_neighbor_ranking_by_distance_fast(distances) -> np.ndarray:
 
     result[filas, indices_sorted] += columnas
     
-    del indices_sorted,filas,columnas
+    del indices_sorted,filas,columnas; gc.collect()
     return result
