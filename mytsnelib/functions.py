@@ -9,13 +9,14 @@ import gc
 def gradient(P, Q, y, y_dist, caso="safe") -> np.ndarray:
     match caso:
         case "safe":
-            return __gradient_safe(P,Q,y,y_dist)
+            result = __gradient_safe(P,Q,y,y_dist)
         case "forces":
-            return __gradient_forces(P,Q,y,y_dist)
+            result = __gradient_forces(P,Q,y,y_dist)
         case "forces_v2":
-            return __gradient_forces_v2(P,Q,y,y_dist)
+            result = __gradient_forces_v2(P,Q,y,y_dist)
         case _:
             raise ValueError("Only accepted cases are safe, forces, and forces_v2")
+    return result
 #----------------------------------------------------------------------------------------------------------------
 def __gradient_safe(P, Q, y, y_dist) -> np.ndarray:
     # p - q, diagonal a 0 porque el sumatorio ignora los casos de i=j
@@ -32,7 +33,6 @@ def __gradient_safe(P, Q, y, y_dist) -> np.ndarray:
     aux2 = np.expand_dims(pq_diff, 2) * y_diff * np.expand_dims(aux,2)
     
     result = 4 * np.sum(aux2, axis=1)
-    del aux,aux2,y_diff,pq_diff
     return result
 def __gradient_forces(P, Q, y, y_dist) -> np.ndarray:
     y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
@@ -102,8 +102,10 @@ def kl_divergence(P, Q) -> float:
         divergence : double.
             The divergence.
     """
+    
     aux = np.nan_to_num(np.log(P/Q))
-    return np.sum(P*aux)
+    result = np.sum(P*aux)
+    return result
 
 class TSne():
     """Class for performing the T-Sne embedding.
@@ -359,7 +361,6 @@ class TSne():
 
         #====Descenso de gradiente===============================================================================================================================
         final_embed = self.__gradient_descent(self.max_iter, p, compute_cost)
-        del p
         
         #====Salida por consola de verbosidad====================================================================================================================
         if self.verbose>0:
@@ -389,7 +390,6 @@ class TSne():
         
         #====Establecer indicador de que se ha hecho el embedding================================================================================================
         self.fitting_done = True
-        gc.collect()
         return final_embed
     
 
@@ -442,12 +442,6 @@ class TSne():
             #====q===================================================================================================================================================
             q = similarities.joint_probabilities_student(current_embed_dist)
             
-            
-            
-            # self.embed_history.append(new_y)
-            # self.embed_dist_history.append(self.prev_embed_dist)
-            # self.q_history.append(q)
-
             if compute_cost:
                 if i%self.iters_check==0 or i==t-1:
                     cost = kl_divergence(p, q)
@@ -455,15 +449,11 @@ class TSne():
                         self.best_cost_iter = i
                         self.best_cost_embed = np.copy(new_embed)
                     self.cost_history.append(cost)
-                    # self.cost_history_embed.append(y)
             
             #actualizar y(t-1), y(t-2)
             previous_embed = np.copy(current_embed)
             current_embed = np.copy(new_embed)
             gc.collect() #liberar memoria despues de cada iteracion
-        
-
-        del lr,early,iter_threshold,momentum,previous_embed,current_embed_dist,q
         return current_embed
 
     def get_best_embedding_cost(self) -> np.ndarray:

@@ -14,23 +14,26 @@ def pairwise_euclidean_distance(X, *, sqrt=False) -> np.ndarray:
         Returns the distances between the row vectors of `X`.
     """
     X = np.nan_to_num(X)
-
     espacio_maybe = len(X)*len(X)*X.dtype.itemsize
     if espacio_maybe>9e9:
         print("Espacio que iba a ocupar: {} GB".format(espacio_maybe/1e9))
         raise ValueError("No")
-    
-
     if espacio_maybe*X.shape[1]<7e9:
         # rapido pero consume un cristo y medio de memoria
         aux = np.sum(np.square(np.expand_dims(X,0) - np.expand_dims(X,1)), 2)
+        result = np.sqrt(aux) if sqrt else np.abs(aux)
+        del aux
     else:
         X_cuadrado = np.sum(np.square(X), axis=1)
         Y_cuadrado = np.reshape(X_cuadrado, [-1,1])
         producto = np.dot(X, X.T)
         aux = X_cuadrado - 2*producto + Y_cuadrado
-        del X_cuadrado, Y_cuadrado, producto
-    return np.sqrt(aux) if sqrt else np.abs(aux)
+        result = np.sqrt(aux) if sqrt else np.abs(aux)
+        del aux,producto,X_cuadrado, Y_cuadrado
+    
+    gc.collect()
+    
+    return result
 
 
 
@@ -62,8 +65,6 @@ def joint_probabilities_gaussian(distances:np.ndarray, perplexity:int, tolerance
     cond_probs = __conditional_p(dists, devs)
     
     result = (cond_probs+cond_probs.T)/(2*dists.shape[0])
-    
-    del dists,devs,cond_probs
     return result
 #---Deviations-------------------------------------------------------------
 def search_deviations(distances:np.ndarray, perplexity=10., tolerance=0.1, iters=1000) -> np.ndarray:
@@ -134,7 +135,6 @@ def __conditional_p(distances:np.ndarray, sigmas:np.ndarray) -> np.ndarray:
     # d1+=1e-8
     result = d1 / np.reshape(np.sum(d2, axis=1), [-1,1])
 
-    del d1,d2
     result[result<=0] = 0
     return result
 
@@ -169,7 +169,6 @@ def joint_probabilities_student(distances:np.ndarray)-> np.ndarray:
 
     result[result<0] = 0
 
-    del d1, d2
     return result
 
 #===Vecinos mas cercanos===================================================
@@ -188,7 +187,6 @@ def get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:
         for rank in range(0, neighbors):
             j = indices_sorted[i][rank]
             result[i][j] = rank+1
-    del n,neighbors,indices_sorted; gc.collect()
     return result
 
 def get_neighbor_ranking_by_distance_fast(distances) -> np.ndarray:
@@ -202,5 +200,4 @@ def get_neighbor_ranking_by_distance_fast(distances) -> np.ndarray:
 
     result[filas, indices_sorted] += columnas
     
-    del indices_sorted,filas,columnas; gc.collect()
     return result

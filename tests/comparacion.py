@@ -23,7 +23,7 @@ def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False,
     verbosidad = 0 if print_tiempo else nivel_verbose
     from mytsnelib import functions
     #perp = n_vecinos*3
-    perp = np.floor(len(data)/fraccionDatosVecinos)
+    perp = np.floor(len(data)/(3*fraccionDatosVecinos))
     perplexity_tolerance = 1e-10
     momentum_params = [250, 0.5, 0.8]
     t0 = time.time_ns()
@@ -49,6 +49,7 @@ def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False,
             title = "Mostrando embedding final"
             embed = np.copy(data_embedded)
         ut.display_embed(embed, labels, title=title)
+        del embed,title
     
     if print_cost_history and calcular_coste:
         historia_coste = np.array(model.cost_history)
@@ -64,6 +65,9 @@ def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False,
         print("Coste minimo, {}/{}: {}".format(np.argmin(historia_coste)+1, len(historia_coste), np.min(historia_coste)))
         print("Ultimo coste: {}".format(historia_coste[-1]))
         print("===================================================================")
+        del historia_coste
+    del t_diff,t0
+    del data_embedded,model,momentum_params,perp,perplexity_tolerance,verbosidad
 
 #===Scikit-learn=============================================================#
 def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=False):
@@ -83,13 +87,14 @@ def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=Fals
         ut.print_tiempo(t_diff, metodo="Scikit-learn", n_digits_ms=6)
     if display:
         ut.display_embed(data_embedded, labels, title=title)
+    del t_diff,t0,data_embedded,model,verbosidad,perp
 
 #===PCA======================================================================#
 def probar_pca(data, labels, *, display=False, title=None, print_tiempo=False):
     from sklearn.decomposition import PCA
-    random_state = np.random.RandomState(seed)
+    rng = np.random.default_rng(seed)
     t0 = time.time_ns()
-    pca = PCA(n_components=n_dimensions, svd_solver="randomized", random_state=random_state)
+    pca = PCA(n_components=n_dimensions, svd_solver="randomized", random_state=rng)
     # Always output a numpy array, no matter what is configured globally
     pca.set_output(transform="default")
     data_embedded = pca.fit_transform(data).astype(np.float32, copy=False)
@@ -102,6 +107,7 @@ def probar_pca(data, labels, *, display=False, title=None, print_tiempo=False):
 
     if display:
         ut.display_embed(data_embedded, labels, title=title)
+    del t_diff,t0,data_embedded,pca,rng
 
 #===Autoencoder==============================================================#
 def probar_autoencoder(train_data, test_data, test_labels, *, display=False, title=None, display_amount=-1, print_tiempo=False):
@@ -145,8 +151,8 @@ def probar_autoencoder(train_data, test_data, test_labels, *, display=False, tit
     if print_tiempo:
         ut.print_tiempo(t_diff, metodo="Autoencoders", n_digits_ms=6)
     
+    rand_indices = np.random.randint(low=0, high=len(test_data), size=display_amount)
     if display_amount>0:
-        rand_indices = np.random.randint(low=0, high=len(test_data), size=display_amount)
         display_data = test_data[rand_indices]
         display_labels = test_labels[rand_indices]
     else:
@@ -157,6 +163,8 @@ def probar_autoencoder(train_data, test_data, test_labels, *, display=False, tit
 
     if display:
         ut.display_embed(data_embedded, display_labels, title=title)
+    
+    del data_embedded,display_data,display_labels,rand_indices,t_diff,autoencoder,t0,sgd,shape
 
 
 #=======================================================================================================#

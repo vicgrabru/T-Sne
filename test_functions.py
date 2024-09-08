@@ -59,7 +59,7 @@ def probar_otra_cosa():
 
 #=================================================================#
 #---Parametros ejecucion-------
-caso_prueba = "skl"
+caso_prueba = "mio"
 #---Calculos extra-------------
 compute_cost = True
 #---Parametros de display------
@@ -87,10 +87,11 @@ match caso_prueba:
 
 
 
-del n_type,first_column,skip_start,usar_rutas_fragmentadas,routes_train
-del data_train,data_test,labels_train,labels_test,data_full,labels_full,data_entrenamiento,labels_entrenamiento
 del caso_prueba,compute_cost,display_embed,display_cost,print_cost_evo,print_tiempo
-del seed,n_samples,index_start,rng,random_indexes
+del data_entrenamiento,labels_entrenamiento,random_indexes,rng,index_start,n_samples,seed
+del data_full,labels_full,data_test,data_train,labels_train,labels_test
+del routes_train,usar_rutas_fragmentadas,skip_start,first_column,n_type
+
 import gc
 gc.collect()
 
