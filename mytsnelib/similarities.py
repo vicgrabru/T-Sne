@@ -20,7 +20,7 @@ def pairwise_euclidean_distance(X, *, sqrt=False, condensed=False) -> np.ndarray
     return result
 
 #===Joint Probabilities (Gaussian))========================================
-def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, not_diag, tolerance:float=None, search_iters=1000) -> np.ndarray:
+def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, tolerance:float=None, search_iters=1000) -> np.ndarray:
     """Obtain the joint probabilities (or affinities) of the points with the given distances.
 
     Parameters
@@ -42,6 +42,7 @@ def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, not_diag, tol
     probabilities : ndarray of shape (n_samples, n_samples) that contains the joint probabilities between the points given.
     """
     n = len(dists)
+    not_diag = ~np.eye(dists.shape[0], dtype=bool)
     cond_probs = np.zeros_like(dists, dtype=float)
     for i in range(n):
         cond_probs[i] = __search_cond_p(dists[i:i+1, :], perplexity, tolerance, search_iters, not_diag[i:i+1,:])
@@ -68,24 +69,17 @@ def __perplexity(cond_p:np.ndarray) -> np.ndarray:
     following the formula
     Perp(P_i) = 2**(-sum( p_{j|i}*log_2(p_{j|i})))
     """
-    entropy = -np.sum(cond_p*np.nan_to_num(np.log2(cond_p)), 1)
-    result = 2**entropy
-
-    del entropy
-    return result
+    return 2**(-np.sum(cond_p*np.nan_to_num(np.log2(cond_p)), 1))
 #---Conditional Probabilities----------------------------------------------
 def __conditional_p(distances:np.ndarray, sigmas:np.ndarray, not_diag) -> np.ndarray:
     """Compute the conditional similarities p_{j|i} and p_{i|j}
     using the distances and standard deviations 
     """
     aux = np.exp(-distances/(2*np.square(sigmas.reshape([-1,1]))))
-    result = aux / aux.sum(axis=1, where=not_diag).reshape([-1,1])
-    
-    del aux
-    return result
+    return aux / aux.sum(axis=1, where=not_diag).reshape([-1,1])
 
 #===Joint Probabilities (T-Student)========================================
-def joint_probabilities_student(distances:np.ndarray, not_in_diag)-> np.ndarray:
+def joint_probabilities_student(distances:np.ndarray)-> np.ndarray:
     """Obtain the joint probabilities (or affinities) of the points with the given distances.
 
     Parameters
@@ -107,9 +101,8 @@ def joint_probabilities_student(distances:np.ndarray, not_in_diag)-> np.ndarray:
     probabilities : ndarray of shape (n_samples, n_samples) that contains the joint probabilities between the points given.
     """
     d = 1/(1+distances)
-    result = d/d.sum(where=not_in_diag)
-    del d
-    return result
+    not_in_diag = ~np.eye(distances.shape[0], dtype=bool)
+    return d/d.sum(where=not_in_diag)
 
 #===Vecinos mas cercanos===================================================
 def get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:

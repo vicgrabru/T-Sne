@@ -39,7 +39,7 @@ else:
 
 #=================================================================#
 #---Parametros ejecucion-------
-caso_prueba = "mio"
+caso_prueba = "skl"
 display_embed = True
 print_tiempo = True
 print_trust = True
@@ -47,8 +47,7 @@ print_trust = True
 
 match caso_prueba:
     case "mio":
-        cost = True
-        comp.probar_mio(data_entrenamiento, labels_entrenamiento, display=display_embed, calcular_coste=cost, print_tiempo=print_tiempo, trust=print_trust)
+        comp.probar_mio(data_entrenamiento, labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo, trust=print_trust)
     case "skl":
         comp.probar_sklearn(data_entrenamiento, labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo)
     case "pca":

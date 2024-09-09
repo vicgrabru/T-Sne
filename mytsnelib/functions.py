@@ -5,11 +5,10 @@ import gc
 
 
 #===Gradiente====================================================================================================
-def gradient(P, Q, y, y_dist, not_diag, caso="safe") -> np.ndarray:
-    condicion = np.expand_dims(not_diag, axis=2)
+def gradient(P, Q, y, y_dist, caso="safe") -> np.ndarray:
     match caso:
         case "safe":
-            return __gradient_safe(P,Q,y,y_dist,condicion)
+            return __gradient_safe(P,Q,y,y_dist)
         case "forces":
             return __gradient_forces(P,Q,y,y_dist)
         case "forces_v2":
@@ -17,8 +16,8 @@ def gradient(P, Q, y, y_dist, not_diag, caso="safe") -> np.ndarray:
         case _:
             raise ValueError("Only accepted cases are safe, forces, and forces_v2")
 #----------------------------------------------------------------------------------------------------------------
-def __gradient_safe(P, Q, y, y_dist, not_diag) -> np.ndarray:
-
+def __gradient_safe(P, Q, y, y_dist) -> np.ndarray:
+    not_diag = np.expand_dims(~np.eye(P.shape[0], dtype=bool), axis=2)
     # pq[i][j] = P[i][j] - Q[i][j]
     pq = P-Q
     
@@ -187,6 +186,7 @@ class TSne():
         accepted_momentum_param_types = [np.float64,np.float32]
         invalid_numbers = np.array([np.nan, np.inf])
 
+        # N dimensions
         if n_dimensions is not None: # n_dimensions: int
             if not isinstance(n_dimensions, (int, float)):
                 raise ValueError("n_dimensions must be of int type")
@@ -196,6 +196,8 @@ class TSne():
                 raise ValueError("n_dimensions must be a positive number")
             elif n_dimensions>3:
                 print("**Warning: If you use more than 3 dimensions, you will not be able to display the embedding**")
+        
+        # Perplexity
         if perplexity is not None: # perplexity: int or float
             if not isinstance(perplexity, (int,float)):
                 raise ValueError("perplexity must a number")
@@ -203,6 +205,8 @@ class TSne():
                 raise ValueError("perplexity cannot be infinite or NaN")
             elif perplexity <= 0.:
                 raise ValueError("perplexity must be a positive number")
+        
+        # Perplexity tolerance
         if perplexity_tolerance is not None: # perplexity_tolerance: float
             if not isinstance(perplexity_tolerance, float):
                 raise ValueError("perplexity_tolerance must be of float type")
@@ -210,25 +214,33 @@ class TSne():
                 raise ValueError("perplexity_tolerance must be finite and not NaN")
             elif perplexity_tolerance < 0:
                 raise ValueError("perplexity_tolerance must be a positive number or 0")
+        
+        # Distance metric
         if metric is not None: # metric: str
             if not isinstance(metric, str):
                 raise ValueError("metric must be of str type")
             elif metric not in accepted_metrics:
                 raise ValueError("Only currently accepted metric is euclidean")
+        
+        # Init method
         if init_method is not None: # init_method: str
             if not isinstance(init_method, str):
                 raise ValueError("init_method must be of str type")
             else: 
                 if init_method not in accepted_methods:
-                    raise ValueError("Only init_method values accepted are random and precomputed")
+                    raise ValueError("Only init_method values accepted are 'random' and 'precomputed'")
+        
+        # Init embed
         if init_embed is not None: # init_embed: ndarray of shape (n_samples, n_features)
             if isinstance(init_embed, np.ndarray):
                 if not isinstance(init_embed.ndtype, np.number):
                     raise ValueError("Data type of the initial embedding must be a number")
-                elif len(np.intersect1d(invalid_numbers, np.reshape(init_embed, [1,-1])))>0:
+                elif np.inf in init_embed or np.nan in init_embed:
                     raise ValueError("init_embed cant have NaN or an infinite number")
             else:
                 raise ValueError("init_embed must be a ndarray")
+        
+        # Early exaggeration
         if early_exaggeration is not None: # early_exaggeration: float
             if not isinstance(early_exaggeration, (int, float)):
                 raise ValueError("early_exaggeration must be a number")
@@ -236,6 +248,8 @@ class TSne():
                 raise ValueError("early_exaggeration must be finite and not NaN")
             elif early_exaggeration <=0.:
                 raise ValueError("early_exaggeration must be positive")
+        
+        # X
         if learning_rate is not None: # learning_rate: float
             if isinstance(learning_rate, str):
                 if learning_rate != "auto":
@@ -246,15 +260,18 @@ class TSne():
                 elif learning_rate <=0.:
                     raise ValueError("learning_rate must be positive")
             else:
-                raise ValueError("learning_rate must a number")
-            
+                raise ValueError("learning_rate must a number or 'auto'")
+        
+        # X
         if max_iter is not None: # max_iter: int
             if not isinstance(max_iter, int):
-                raise ValueError("max_iter must be of int type")
+                raise ValueError("max_iter must be an integer")
             elif max_iter in invalid_numbers:
                 raise ValueError("max_iter must be finite and not NaN")
             elif max_iter <1:
                 raise ValueError("max_iter must be a positive number")
+        
+        # X
         if momentum_params is not None: # momentum_params: ndarray of shape (3,)
             if not isinstance(momentum_params, np.ndarray):
                 if np.array(momentum_params).shape!=(3,):
@@ -263,22 +280,26 @@ class TSne():
                 raise ValueError("momentum_params must be a ndarray of shape (3,)")
             elif momentum_params.dtype not in accepted_momentum_param_types:
                 raise ValueError("The elements of momentum_params must be float(at least float32)")
-            elif len(np.intersect1d(momentum_params, invalid_numbers))>0:
-                raise ValueError("init_embed cant have NaN or an infinite number")
+            elif np.inf in momentum_params or np.nan in momentum_params:
+                raise ValueError("momentum_params cant have NaN or an infinite number")
             elif np.min(momentum_params)<=0.:
-                raise ValueError("All elements must be positive numbers")
-            elif not (momentum_params[0]).is_integer():
-                raise ValueError("The time threshold must be a whole number")
+                raise ValueError("All elements must be greater than 0")
+        
+        # X
         if seed is not None: # seed: int
             if not isinstance(seed, int):
                 raise ValueError("seed must be an integer")
             elif seed<0:
-                raise ValueError("seed must be a positive integer")
+                raise ValueError("seed must be positive")
+        
+        # X
         if verbose is not None: # verbose: int
             if not isinstance(verbose, int):
                 raise ValueError("verbose must be an integer")
             elif verbose<0:
-                raise ValueError("verbose must be a positive number")
+                raise ValueError("verbose must be positive")
+        
+        # X
         if iters_check is not None: #iters_check: int
             if not isinstance(iters_check, int):
                 raise ValueError("iters_check must be an integer")
@@ -306,7 +327,7 @@ class TSne():
             dims = 1
             for d in result.shape[1:]:
                 dims*=d
-            return result.reshape((len(result), dims))
+            return np.reshape(result.copy(), (len(result), dims))
         return result
     def __rand_embed(self, *, n_samples:int, n_dimensions:int) -> np.ndarray:
         """Returns a random embedding following the given parameters.
@@ -328,7 +349,7 @@ class TSne():
         assert n_dimensions is not None
         return self.rng.standard_normal(size=(n_samples, n_dimensions))
 
-    def fit(self, input, compute_cost=True) -> np.ndarray:
+    def fit(self, input) -> np.ndarray:
         """Fit the given data and perform the embedding
 
         Parameters
@@ -341,7 +362,7 @@ class TSne():
 
         #====Input con dimensiones correctas y embed inicial=====================================================================================================
         X = self.__fit_input_validation(input, embed=self.init_embed)
-        not_diag = ~np.eye(X.shape[0], dtype=bool)
+        
         
         #====Ajuste del learning rate============================================================================================================================
         if self.learning_rate == "auto":
@@ -355,12 +376,12 @@ class TSne():
         
         #====Obtener P===========================================================================================================================================
         dist_original = similarities.pairwise_euclidean_distance(X) #solo es necesario para calcular P
-        p = similarities.joint_probabilities_gaussian(dist_original, self.perplexity, not_diag, self.perplexity_tolerance)
+        p = similarities.joint_probabilities_gaussian(dist_original, self.perplexity, self.perplexity_tolerance)
         
         del dist_original #dist_original ya no hace falta
 
         #====Descenso de gradiente===============================================================================================================================
-        final_embed = self.__gradient_descent(self.max_iter, p*self.early_exaggeration, not_diag, compute_cost)
+        final_embed = self.__gradient_descent(self.max_iter, p*self.early_exaggeration)
         
         #====Salida por consola de verbosidad====================================================================================================================
         if self.verbose>0:
@@ -388,33 +409,30 @@ class TSne():
             print("====================================")
             del t0,t_diff,t_diff_exact,tS,tM,tH,strings_imprimir
         
-        #====Establecer indicador de que se ha hecho el embedding================================================================================================
         return final_embed
     
 
 
-    def __gradient_descent(self, t, p, not_diag, compute_cost=True):
+    def __gradient_descent(self, t, p):
         n_samples_ = len(p)
         if self.init_embed is None:
             self.init_embed = self.__rand_embed(n_samples=n_samples_, n_dimensions=self.n_dimensions)
-        
-        current_embed = np.copy(self.init_embed)
+        current_embed = self.init_embed.copy()
         #====dist_embed==========================================================================================================================================
         current_embed_dist = similarities.pairwise_euclidean_distance(current_embed)
         
         #====q===================================================================================================================================================
-        q = similarities.joint_probabilities_student(current_embed_dist, not_diag)
-
+        q = similarities.joint_probabilities_student(current_embed_dist)
         
-        
-        if compute_cost:
-            cost = kl_divergence(p, q)
-            best_iter_ = 1
-            best_cost_ = cost
-            best_embed_ = np.reshape(current_embed, (-1), order='C')
-            cost_history_ = [cost, cost]
+        #===Parametros para el coste=============================================================================================================================
+        cost = kl_divergence(p, q)
+        best_iter_ = 1
+        best_cost_ = cost
+        best_embed_ = np.reshape(current_embed.copy(), (-1), order='C')
 
+        #===Parametros extra=====================================================================================================================================
         lr = self.lr
+        early = self.early_exaggeration
         iter_threshold = int(self.momentum_params[0])
         momentum = self.momentum_params[1]
         previous_embed = np.copy(current_embed)
@@ -424,44 +442,41 @@ class TSne():
                 print("---------------------------------")
                 print("Comenzando iteracion {}/{}".format(i,t))
             #====grad================================================================================================================================================
-            grad = gradient(p, q, current_embed, current_embed_dist, not_diag, caso="safe")
+            grad = gradient(p, q, current_embed, current_embed_dist, caso="safe")
 
             #====embed===============================================================================================================================================
             #y{i} = y{i-1} + learning_rate*gradiente + momentum(t) * (y{i-1} - y{i-2})
-            # y = self.embed_history[-1] - lr*grad + momentum*(self.embed_history[-1]-self.embed_history[-2])
             new_embed = current_embed - lr*grad + momentum*(current_embed-previous_embed)
             del grad
             #====momentum change=====================================================================================================================================
             if i==iter_threshold:
-                p /=self.early_exaggeration
+                p /= early
+                early = 1
                 momentum = self.momentum_params[2]
 
             #====dist_embed==========================================================================================================================================
             current_embed_dist = similarities.pairwise_euclidean_distance(new_embed)
             #====q===================================================================================================================================================
-            q = similarities.joint_probabilities_student(current_embed_dist, not_diag)
+            q = similarities.joint_probabilities_student(current_embed_dist)
             
-            if compute_cost:
-                if i%self.iters_check==0 or i==t-1:
-                    cost = kl_divergence(p, q)
-                    cost_history_.append(cost)
-                    if cost<best_cost_:
-                        best_iter_ = i
-                        best_cost_ = cost
-                        best_embed_ = np.reshape(new_embed,(-1), order='C')
+            if i%self.iters_check==0 or i==t-1:
+                cost = kl_divergence(p, q)
+                if cost<best_cost_:
+                    best_iter_ = i
+                    best_cost_ = cost
+                    best_embed_ = np.reshape(new_embed.copy(),(-1), order='C')
             #actualizar y(t-1), y(t-2)
-            previous_embed = np.copy(current_embed)
-            current_embed = np.copy(new_embed)
+            previous_embed = current_embed.copy()
+            current_embed = new_embed.copy()
             gc.collect() #liberar memoria despues de cada iteracion
-        if compute_cost:
-            self.best_iter = best_iter_
-            self.best_cost = best_cost_
-            self.best_embed = np.reshape(best_embed_, [n_samples_, self.n_dimensions], order='C')
+        self.best_iter = best_iter_
+        self.best_cost = best_cost_
+        self.best_embed = np.reshape(best_embed_.copy(), [n_samples_, self.n_dimensions], order='C')
         return current_embed
 
-    def get_best_embedding(self) -> np.ndarray:
+    def get_best_embedding_cost_info(self):
         assert self.best_embed is not None
-        return self.best_cost, self.best_embed, self.best_iter
+        return self.best_iter, self.best_cost
 
     
 

@@ -20,7 +20,7 @@ nivel_verbose=0
 #======================================================#
 
 #===Mio======================================================================#
-def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False, print_tiempo=False, trust=False):
+def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, trust=False):
     verbosidad = 0 if print_tiempo else nivel_verbose
     from mytsnelib import functions
     perplexity_tolerance = 1e-10
@@ -36,20 +36,16 @@ def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False,
                         seed=seed,
                         verbose=verbosidad,
                         iters_check=iters_check)
-    data_embedded = model.fit(data, compute_cost=calcular_coste)
+    data_embedded = model.fit(data)
     t_diff = (time.time_ns()-t0)*1e-9
     
     if print_tiempo:
         ut.print_tiempo(t_diff, metodo="Mio", n_digits_ms=6)
     
     if display:
-        if calcular_coste:
-            cost, embed, it = model.get_best_embedding()
-            strCost = str(cost)[:10] if cost<100000 else cost
-            title = "Iteración {}/{}, con coste {}".format(it, max_iter, strCost)
-        else:
-            title = "Mostrando embedding final"
-            embed = np.copy(data_embedded)
+        best_iter, best_cost = model.get_best_embedding_cost_info()
+        title = "Mostrando embedding con mejor coste, en la iteracion {}/{}".format(best_iter, max_iter)
+        embed = np.copy(data_embedded)
         ut.display_embed(embed, labels, title=title)
         del embed,title
     
