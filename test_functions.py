@@ -42,13 +42,13 @@ else:
 caso_prueba = "mio"
 display_embed = True
 print_tiempo = True
+print_trust = True
 #=================================================================#
 
 match caso_prueba:
     case "mio":
         cost = True
-        print_cost_evo = True
-        comp.probar_mio(data_entrenamiento, labels_entrenamiento, display=display_embed, calcular_coste=cost, print_cost_history=print_cost_evo, print_tiempo=print_tiempo)
+        comp.probar_mio(data_entrenamiento, labels_entrenamiento, display=display_embed, calcular_coste=cost, print_tiempo=print_tiempo, trust=print_trust)
     case "skl":
         comp.probar_sklearn(data_entrenamiento, labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo)
     case "pca":

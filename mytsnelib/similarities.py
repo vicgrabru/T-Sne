@@ -1,6 +1,6 @@
 import numpy as np
 #===Euclidean Distance=====================================================
-def pairwise_euclidean_distance(X, *, sqrt=False) -> np.ndarray:
+def pairwise_euclidean_distance(X, *, sqrt=False, condensed=False) -> np.ndarray:
     """Compute the euclidean distances between the vectors of the given input.
     Parameters
     ----------
@@ -12,26 +12,12 @@ def pairwise_euclidean_distance(X, *, sqrt=False) -> np.ndarray:
     distances : ndarray of shape (n_samples_X, n_samples_X)
         Returns the distances between the row vectors of `X`.
     """
-    X = np.nan_to_num(X)
-    espacio_maybe = len(X)*len(X)*X.dtype.itemsize
-    if espacio_maybe>9e9:
-        print("Espacio que iba a ocupar: {} GB".format(espacio_maybe/1e9))
-        raise ValueError("No")
-    if espacio_maybe*X.shape[1]<7e9:
-        # rapido pero consume un cristo y medio de memoria
-        aux = np.sum(np.square(np.expand_dims(X,0) - np.expand_dims(X,1)), 2)
-    else:
-        X_cuadrado = np.sum(np.square(X), axis=1)
-        Y_cuadrado = X_cuadrado.reshape([-1,1])
-        
-        producto = np.dot(X, X.T)
-        aux = X_cuadrado - 2*producto + Y_cuadrado
-
-    result = np.sqrt(aux) if sqrt else np.abs(aux)
-    del aux
+    from scipy.spatial import distance
+    metrica = "euclidean" if sqrt else "sqeuclidean"
+    result = distance.pdist(X, metric=metrica)
+    if not condensed:
+        result = distance.squareform(result)
     return result
-
-
 
 #===Joint Probabilities (Gaussian))========================================
 def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, not_diag, tolerance:float=None, search_iters=1000) -> np.ndarray:
@@ -60,6 +46,7 @@ def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, not_diag, tol
     for i in range(n):
         cond_probs[i] = __search_cond_p(dists[i:i+1, :], perplexity, tolerance, search_iters, not_diag[i:i+1,:])
     result = (cond_probs+cond_probs.T)/(2*n)
+    del cond_probs
     return result
 #---Deviations-------------------------------------------------------------
 def __search_cond_p(dist, perplexity_goal, tolerance, iters, not_diag, *, min_deviation=1e-20, max_deviation=10000.) -> float:
@@ -81,7 +68,6 @@ def __perplexity(cond_p:np.ndarray) -> np.ndarray:
     following the formula
     Perp(P_i) = 2**(-sum( p_{j|i}*log_2(p_{j|i})))
     """
-    
     entropy = -np.sum(cond_p*np.nan_to_num(np.log2(cond_p)), 1)
     result = 2**entropy
 
@@ -92,8 +78,10 @@ def __conditional_p(distances:np.ndarray, sigmas:np.ndarray, not_diag) -> np.nda
     """Compute the conditional similarities p_{j|i} and p_{i|j}
     using the distances and standard deviations 
     """
-    d = np.exp(-distances/(2*np.square(sigmas.reshape([-1,1]))))
-    result = d / np.reshape(d.sum(axis=1, where=not_diag), [-1,1])
+    aux = np.exp(-distances/(2*np.square(sigmas.reshape([-1,1]))))
+    result = aux / aux.sum(axis=1, where=not_diag).reshape([-1,1])
+    
+    del aux
     return result
 
 #===Joint Probabilities (T-Student)========================================
@@ -119,7 +107,9 @@ def joint_probabilities_student(distances:np.ndarray, not_in_diag)-> np.ndarray:
     probabilities : ndarray of shape (n_samples, n_samples) that contains the joint probabilities between the points given.
     """
     d = 1/(1+distances)
-    return d/d.sum(where=not_in_diag)
+    result = d/d.sum(where=not_in_diag)
+    del d
+    return result
 
 #===Vecinos mas cercanos===================================================
 def get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:

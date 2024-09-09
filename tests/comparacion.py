@@ -6,10 +6,11 @@ import time
 #======================================================#
 #---Parametros para entrenar el modelo-----------------#
 n_dimensions = 2
-# perplexity = 50
+perplexity = 50
 lr = "auto"
-early_exaggeration = 12.
-max_iter = 1000
+# lr = 500
+early_exaggeration = 4
+max_iter = 10000
 seed = 4
 iters_check = 50
 init_method = "random"
@@ -19,16 +20,14 @@ nivel_verbose=0
 #======================================================#
 
 #===Mio======================================================================#
-def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False, print_cost_history=False, print_tiempo=False):
+def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False, print_tiempo=False, trust=False):
     verbosidad = 0 if print_tiempo else nivel_verbose
     from mytsnelib import functions
-    #perp = np.floor(len(data)/(3*fraccionDatosVecinos))
-    perp = 40
     perplexity_tolerance = 1e-10
     momentum_params = [250, 0.5, 0.8]
     t0 = time.time_ns()
     model = functions.TSne(n_dimensions=n_dimensions,
-                        perplexity=perp,
+                        perplexity=perplexity,
                         perplexity_tolerance=perplexity_tolerance,
                         early_exaggeration=early_exaggeration,
                         learning_rate=lr,
@@ -39,27 +38,15 @@ def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False,
                         iters_check=iters_check)
     data_embedded = model.fit(data, compute_cost=calcular_coste)
     t_diff = (time.time_ns()-t0)*1e-9
+    
     if print_tiempo:
         ut.print_tiempo(t_diff, metodo="Mio", n_digits_ms=6)
-    if print_cost_history and calcular_coste:
-        coste, _, it = model.get_best_embedding()
-        historia_coste = np.array(model.cost_history)
-        print("Cost history:")
-        print("{}".format(historia_coste))
-        # for i in range(1, len(historia_coste)):
-        #     if historia_coste[i]>historia_coste[i-1]:
-        #         print("-------------------------------------------------------------------")
-        #         print("Coste {} > Coste {}".format(i+1, i))
-        #         print("Coste {}: {}".format(i+1, historia_coste[i]))
-        #         print("Coste {}: {}".format(i, historia_coste[i-1]))
-        print("-------------------------------------------------------------------")
-        print("Coste minimo, i={}({}/{}): {}".format(it, np.floor(it/iters_check), len(historia_coste), coste))
-        print("Ultimo coste: {}".format(historia_coste[-1]))
-        print("===================================================================")
+    
     if display:
         if calcular_coste:
-            _, embed, it = model.get_best_embedding()
-            title = "Iteración con mejor coste: {}/{}".format(it, max_iter)
+            cost, embed, it = model.get_best_embedding()
+            strCost = str(cost)[:10] if cost<100000 else cost
+            title = "Iteración {}/{}, con coste {}".format(it, max_iter, strCost)
         else:
             title = "Mostrando embedding final"
             embed = np.copy(data_embedded)
@@ -67,13 +54,17 @@ def probar_mio(data, labels, *, display=False, title=None, calcular_coste=False,
         del embed,title
     
     
+    if trust:
+        print_trust(data, data_embedded, "mio")
+
     del t_diff,t0
-    del data_embedded,model,momentum_params,perp,perplexity_tolerance,verbosidad
+    del data_embedded,model,momentum_params,perplexity_tolerance,verbosidad
 
 #===Scikit-learn=============================================================#
 def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=False):
     import sklearn.manifold as mnf
-    perp = np.floor(len(data)/(3*fraccionDatosVecinos))
+    # perp = np.floor(len(data)/(3*fraccionDatosVecinos))
+    perp = 40
     verbosidad = 0 if print_tiempo else nivel_verbose
     t0 = time.time_ns()
     model = mnf.TSNE(n_components=n_dimensions,
@@ -84,11 +75,14 @@ def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=Fals
                      verbose=verbosidad)
     data_embedded = model.fit_transform(data)
     t_diff = (time.time_ns()-t0)*1e-9
+    
     if print_tiempo:
         ut.print_tiempo(t_diff, metodo="Scikit-learn", n_digits_ms=6)
     if display:
         ut.display_embed(data_embedded, labels, title=title)
-    del t_diff,t0,data_embedded,model,verbosidad,perp
+    
+    print_trust(data, data_embedded, "Scikit-Learn")
+
 
 #===PCA======================================================================#
 def probar_pca(data, labels, *, display=False, title=None, print_tiempo=False):
@@ -183,3 +177,10 @@ def probar_open(data, labels, *, verbose=1, display=False, title=None):
 #=======================================================================================================#
 #=======================================================================================================#
 #=======================================================================================================#
+
+def print_trust(data, embed, metodo):
+    import sklearn.manifold as mnf
+    trust = mnf.trustworthiness(data, embed)
+    trust_exacto = int(np.floor(trust))
+    trust_ms = str(trust-trust_exacto)[2:8]
+    print("Trust con {}: {}.{}".format(metodo, trust_exacto, trust_ms))
