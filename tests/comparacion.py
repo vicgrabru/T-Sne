@@ -10,7 +10,7 @@ perplexity = 50
 lr = "auto"
 # lr = 500
 early_exaggeration = 4
-max_iter = 10000
+max_iter = 5000
 seed = 4
 iters_check = 50
 init_method = "random"
@@ -57,7 +57,7 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
     del data_embedded,model,momentum_params,perplexity_tolerance,verbosidad
 
 #===Scikit-learn=============================================================#
-def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=False):
+def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=False, trust=False):
     import sklearn.manifold as mnf
     # perp = np.floor(len(data)/(3*fraccionDatosVecinos))
     perp = 40
@@ -76,8 +76,8 @@ def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=Fals
         ut.print_tiempo(t_diff, metodo="Scikit-learn", n_digits_ms=6)
     if display:
         ut.display_embed(data_embedded, labels, title=title)
-    
-    print_trust(data, data_embedded, "Scikit-Learn")
+    if trust:
+        print_trust(data, data_embedded, "Scikit-Learn")
 
 
 #===PCA======================================================================#

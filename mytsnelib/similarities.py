@@ -101,8 +101,7 @@ def joint_probabilities_student(distances:np.ndarray)-> np.ndarray:
     probabilities : ndarray of shape (n_samples, n_samples) that contains the joint probabilities between the points given.
     """
     d = 1/(1+distances)
-    not_in_diag = ~np.eye(distances.shape[0], dtype=bool)
-    return d/d.sum(where=not_in_diag)
+    return d/d.sum(where=~np.eye(distances.shape[0], dtype=bool))
 
 #===Vecinos mas cercanos===================================================
 def get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:

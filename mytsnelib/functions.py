@@ -102,11 +102,7 @@ def kl_divergence(P, Q) -> float:
         divergence : double.
             The divergence.
     """
-    
-    aux = np.nan_to_num(np.log(P/Q))
-    result = np.sum(P*aux)
-    del aux
-    return result
+    return np.sum(P*np.nan_to_num(np.log(P/Q)))
 
 class TSne():
     """Class for performing the T-Sne embedding.
@@ -249,7 +245,7 @@ class TSne():
             elif early_exaggeration <=0.:
                 raise ValueError("early_exaggeration must be positive")
         
-        # X
+        # Learning rate
         if learning_rate is not None: # learning_rate: float
             if isinstance(learning_rate, str):
                 if learning_rate != "auto":
@@ -262,7 +258,7 @@ class TSne():
             else:
                 raise ValueError("learning_rate must a number or 'auto'")
         
-        # X
+        # Max iter
         if max_iter is not None: # max_iter: int
             if not isinstance(max_iter, int):
                 raise ValueError("max_iter must be an integer")
@@ -271,7 +267,7 @@ class TSne():
             elif max_iter <1:
                 raise ValueError("max_iter must be a positive number")
         
-        # X
+        # Momentum parameters
         if momentum_params is not None: # momentum_params: ndarray of shape (3,)
             if not isinstance(momentum_params, np.ndarray):
                 if np.array(momentum_params).shape!=(3,):
@@ -285,21 +281,21 @@ class TSne():
             elif np.min(momentum_params)<=0.:
                 raise ValueError("All elements must be greater than 0")
         
-        # X
+        # Seed
         if seed is not None: # seed: int
             if not isinstance(seed, int):
                 raise ValueError("seed must be an integer")
             elif seed<0:
                 raise ValueError("seed must be positive")
         
-        # X
+        # Verbose
         if verbose is not None: # verbose: int
             if not isinstance(verbose, int):
                 raise ValueError("verbose must be an integer")
             elif verbose<0:
                 raise ValueError("verbose must be positive")
         
-        # X
+        # Iters check
         if iters_check is not None: #iters_check: int
             if not isinstance(iters_check, int):
                 raise ValueError("iters_check must be an integer")

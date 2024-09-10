@@ -39,17 +39,17 @@ else:
 
 #=================================================================#
 #---Parametros ejecucion-------
-caso_prueba = "skl"
-display_embed = True
+caso_prueba = "mio"
+display_embed = False
 print_tiempo = True
-print_trust = True
+print_trust = False
 #=================================================================#
 
 match caso_prueba:
     case "mio":
         comp.probar_mio(data_entrenamiento, labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo, trust=print_trust)
     case "skl":
-        comp.probar_sklearn(data_entrenamiento, labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo)
+        comp.probar_sklearn(data_entrenamiento, labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo, trust=print_trust)
     case "pca":
         comp.probar_pca(data_train,labels_train, display=display_embed, print_tiempo=print_tiempo)
     case "autoencoders":
@@ -60,19 +60,27 @@ match caso_prueba:
         input2 = np.ravel(input)
         print("data.flatten.shape: {}".format(input2.shape))
     case "otro":
+        iden = np.eye(5, dtype=float)
+        iden2 = np.eye(5, dtype=float)
+        np.fill_diagonal(iden, np.nan)
+        np.fill_diagonal(iden2, np.inf)
+        iden*=0
+        iden2*=0
+        print("iden:\n{}".format(iden))
+        print("iden2:\n{}".format(iden2))
         print("Probando otra cosa")
-        a = np.array([
-                        [[1,2,3],[4,5,6],[7,8,9]],
-                        [[10,11,12],[13,14,15],[16,17,18]],
-                        [[19,20,21],[22,23,24],[25,26,27]]
-                    ])
-        a0 = np.sum(a, axis=0)
-        a1 = np.sum(a, axis=1)
-        a2 = np.sum(a, axis=2)
+        # a = np.array([
+        #                 [[1,2,3],[4,5,6],[7,8,9]],
+        #                 [[10,11,12],[13,14,15],[16,17,18]],
+        #                 [[19,20,21],[22,23,24],[25,26,27]]
+        #             ])
+        # a0 = np.sum(a, axis=0)
+        # a1 = np.sum(a, axis=1)
+        # a2 = np.sum(a, axis=2)
 
-        b = np.array([[1,2,3],[4,5,6],[7,8,9]])
-        c = np.array([[2,3,4],[1,0,0],[5,5,5]])
-        b2 = np.expand_dims(b, 2)
+        # b = np.array([[1,2,3],[4,5,6],[7,8,9]])
+        # c = np.array([[2,3,4],[1,0,0],[5,5,5]])
+        # b2 = np.expand_dims(b, 2)
     case _:
         gc.collect()
 
