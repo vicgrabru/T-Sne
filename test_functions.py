@@ -61,27 +61,23 @@ match caso_prueba:
         input2 = np.ravel(input)
         print("data.flatten.shape: {}".format(input2.shape))
     case "otro":
-        iden = np.eye(5, dtype=float)
-        iden2 = np.eye(5, dtype=float)
-        np.fill_diagonal(iden, np.nan)
-        np.fill_diagonal(iden2, np.inf)
-        iden*=0
-        iden2*=0
-        print("iden:\n{}".format(iden))
-        print("iden2:\n{}".format(iden2))
-        print("Probando otra cosa")
-        # a = np.array([
-        #                 [[1,2,3],[4,5,6],[7,8,9]],
-        #                 [[10,11,12],[13,14,15],[16,17,18]],
-        #                 [[19,20,21],[22,23,24],[25,26,27]]
-        #             ])
-        # a0 = np.sum(a, axis=0)
-        # a1 = np.sum(a, axis=1)
-        # a2 = np.sum(a, axis=2)
-
-        # b = np.array([[1,2,3],[4,5,6],[7,8,9]])
-        # c = np.array([[2,3,4],[1,0,0],[5,5,5]])
-        # b2 = np.expand_dims(b, 2)
+        a = np.array([1, 1])
+        b = a
+        c = a.copy()
+        print("a: {}".format(a))
+        print("b: {}".format(b))
+        print("c: {}".format(c))
+        print("--------------------")
+        a[0] = 0
+        b[1] = 2
+        print("a: {}".format(a))
+        print("b: {}".format(b))
+        print("c: {}".format(c))
+        print("--------------------")
+        b+=1
+        print("a: {}".format(a))
+        print("b: {}".format(b))
+        print("c: {}".format(c))
     case _:
         gc.collect()
 

@@ -167,8 +167,8 @@ class TSne():
         self.early_exaggeration = 12. if early_exaggeration is None else early_exaggeration
         self.verbose = verbose
         self.iters_check = iters_check
-        self.seed = seed
-        self.rng = np.random.default_rng(int(time.time())) if seed is None else np.random.default_rng(seed)
+        self.seed = int(time.time()) if seed is None else seed
+        self.rng = np.random.default_rng(self.seed)
         self.n_neighbors = int(np.floor(3*perplexity))
         
         #===parametros auxiliares====================================================================================
@@ -347,7 +347,7 @@ class TSne():
             else: #init = "random"
                 return self.rng.standard_normal(size=(n_samples, n_dimensions))
         else:
-            return self.init
+            return self.init.copy()
 
     def fit(self, input) -> np.ndarray:
         """Fit the given data and perform the embedding
@@ -367,19 +367,21 @@ class TSne():
         X = self.__input_validation(input)
         self.init_embed = self.__rand_embed(X, self.n_dimensions)
         
-        #====Obtener P===========================================================================================================================================
-        dist_original = X if self.metric=="precomputed" else similarities.pairwise_euclidean_distance(X) #solo es necesario para calcular P
-        
         #====Ajuste del learning rate============================================================================================================================
         if self.learning_rate == "auto":
-            self.lr = len(dist_original) / self.early_exaggeration
+            self.lr = len(X) / self.early_exaggeration
             self.lr = np.maximum(self.lr, 50)
         else:
             self.lr = self.learning_rate
 
-        p = similarities.joint_probabilities_gaussian(dist_original, self.perplexity, self.perplexity_tolerance)
-        del dist_original #dist_original ya no hace falta
-
+        #====Obtener P===========================================================================================================================================
+        if self.metric=="precomputed":
+            p = similarities.joint_probabilities_gaussian(X, self.perplexity, self.perplexity_tolerance)
+        else:
+            dist_original = similarities.pairwise_euclidean_distance(X) #solo es necesario para calcular P
+            p = similarities.joint_probabilities_gaussian(dist_original, self.perplexity, self.perplexity_tolerance)
+            del dist_original #dist_original ya no hace falta
+        
         #====Descenso de gradiente===============================================================================================================================
         final_embed = self.__gradient_descent(self.max_iter, p*self.early_exaggeration)
         
@@ -410,8 +412,6 @@ class TSne():
         
         return final_embed
     
-
-
     def __gradient_descent(self, t, p):
         n_samples_ = len(p)
 
@@ -433,7 +433,8 @@ class TSne():
         iter_threshold = int(self.momentum_params[0])
         momentum = self.momentum_params[1]
         previous_embed = np.zeros_like(embed, dtype=embed.dtype)
-        for i in range(1, t): # i=0 es el inicial
+        # update = np.zeros_like(embed, dtype=embed.dtype)
+        for i in range(0, t):
             if self.verbose>1 and i%self.iters_check==0:
                 print("---------------------------------")
                 print("Comenzando iteracion {}/{}".format(i,t))
@@ -442,11 +443,16 @@ class TSne():
 
             #====embed===============================================================================================================================================
             #y{i} = y{i-1} + learning_rate*gradiente + momentum(t) * (y{i-1} - y{i-2})
+            
             diff = embed-previous_embed
             previous_embed = embed.copy()
             embed -= lr*grad
             embed += momentum*diff
             del grad, diff
+
+            # update = momentum*update - lr*grad
+            # embed += update
+
             #====momentum change=====================================================================================================================================
             if i==iter_threshold:
                 p /= self.early_exaggeration
@@ -463,7 +469,7 @@ class TSne():
                     best_iter_ = i
                     best_cost_ = cost
                     best_embed_ = embed.reshape(-1, order='C')
-            gc.collect() #liberar memoria despues de cada iteracion
+            # gc.collect() #liberar memoria despues de cada iteracion
         self.best_iter = best_iter_
         self.best_cost = best_cost_
         self.best_embed = best_embed_.reshape(n_samples_, self.n_dimensions, order='C')

@@ -12,8 +12,9 @@ lr = "auto"
 early_exaggeration = 4
 max_iter = 5000
 seed = 4
+# seed = int(time.time())
 iters_check = 50
-init_method = "random"
+init = "random"
 fraccionDatosVecinos = 3
 #---Cosas que mostrar por consola----------------------#
 nivel_verbose=0
@@ -31,6 +32,7 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
                         perplexity_tolerance=perplexity_tolerance,
                         early_exaggeration=early_exaggeration,
                         learning_rate=lr,
+                        init=init,
                         max_iter=max_iter,
                         momentum_params=momentum_params,
                         seed=seed,
@@ -56,14 +58,12 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
 #===Scikit-learn=============================================================#
 def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=False, trust=False):
     import sklearn.manifold as mnf
-    # perp = np.floor(len(data)/(3*fraccionDatosVecinos))
-    perp = 40
     verbosidad = 0 if print_tiempo else nivel_verbose
     t0 = time.time_ns()
     model = mnf.TSNE(n_components=n_dimensions,
                      learning_rate=lr,
-                     init=init_method,
-                     perplexity=perp,
+                     init=init,
+                     perplexity=perplexity,
                      early_exaggeration=early_exaggeration,
                      verbose=verbosidad)
     data_embedded = model.fit_transform(data)
