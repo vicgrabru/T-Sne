@@ -40,7 +40,7 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
     t_diff = (time.time_ns()-t0)*1e-9
     
     if print_tiempo:
-        ut.print_tiempo(t_diff, metodo="Mio", n_digits_ms=6)
+        ut.print_tiempo(t_diff, metodo="Mio")
     if trust:
         ut.print_trust(data, data_embedded, "mio")
     if display:
@@ -69,7 +69,7 @@ def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=Fals
     data_embedded = model.fit_transform(data)
     t_diff = (time.time_ns()-t0)*1e-9
     if print_tiempo:
-        ut.print_tiempo(t_diff, metodo="Scikit-learn", n_digits_ms=6)
+        ut.print_tiempo(t_diff, metodo="Scikit-learn")
     if trust:
         ut.print_trust(data, data_embedded, "Scikit-Learn")
     if display:
@@ -78,11 +78,10 @@ def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=Fals
 
 
 #===PCA======================================================================#
-def probar_pca(data, labels, *, display=False, title=None, print_tiempo=False):
+def probar_pca(data, labels, *, display=False, title=None, print_tiempo=False, trust=False):
     from sklearn.decomposition import PCA
-    rng = np.random.default_rng(seed)
     t0 = time.time_ns()
-    pca = PCA(n_components=n_dimensions, svd_solver="randomized", random_state=rng)
+    pca = PCA(n_components=n_dimensions, svd_solver="randomized", random_state=seed)
     # Always output a numpy array, no matter what is configured globally
     pca.set_output(transform="default")
     data_embedded = pca.fit_transform(data).astype(np.float32, copy=False)
@@ -91,18 +90,17 @@ def probar_pca(data, labels, *, display=False, title=None, print_tiempo=False):
     data_embedded = data_embedded / np.std(data_embedded[:, 0]) * 1e-4
     t_diff = (time.time_ns()-t0)*1e-9
     if print_tiempo:
-        ut.print_tiempo(t_diff, metodo="PCA", n_digits_ms=6)
-
+        ut.print_tiempo(t_diff, metodo="PCA")
+    if trust:
+        ut.print_trust(data, data_embedded, metodo="PCA")
     if display:
         ut.display_embed(data_embedded, labels, title=title)
-    del t_diff,t0,data_embedded,pca,rng
+    del t_diff,t0,data_embedded,pca
 
 #===Autoencoder==============================================================#
-def probar_autoencoder(train_data, test_data, test_labels, *, display=False, title=None, display_amount=-1, print_tiempo=False):
-    import tensorflow as tf
+def probar_autoencoder(train_data, test_data, test_labels, *, display=False, title=None, display_amount=-1, print_tiempo=False, trust=False):
     from keras.api import Sequential
-    from keras.api.losses import MeanSquaredError
-    from keras.api.layers import Dense, Flatten, Reshape
+    from keras.api.layers import Dense
     from keras.api.models import Model
 
     class Autoencoder(Model):
@@ -131,13 +129,12 @@ def probar_autoencoder(train_data, test_data, test_labels, *, display=False, tit
     # autoencoder.compile(optimizer='adam', loss=MeanSquaredError())
     
     from keras.api.optimizers import SGD
-    sgd = SGD(learning_rate=lr/10000)
+    sgd = SGD(learning_rate=0.02)
     t0 = time.time_ns()
     autoencoder.compile(optimizer='sgd', loss='mse')
     autoencoder.fit(train_data, train_data, epochs=10, shuffle=True, validation_data=(test_data, test_data), verbose=nivel_verbose)
     t_diff = (time.time_ns()-t0)*1e-9
-    if print_tiempo:
-        ut.print_tiempo(t_diff, metodo="Autoencoders", n_digits_ms=6)
+    
     
     rand_indices = np.random.randint(low=0, high=len(test_data), size=display_amount)
     if display_amount>0:
@@ -148,6 +145,12 @@ def probar_autoencoder(train_data, test_data, test_labels, *, display=False, tit
         display_labels = test_labels
     
     data_embedded = autoencoder.encoder(display_data).numpy()
+
+    if print_tiempo:
+        ut.print_tiempo(t_diff, metodo="Autoencoders")
+    
+    if trust:
+        ut.print_trust(display_data, data_embedded, metodo="Autoencoder")
 
     if display:
         ut.display_embed(data_embedded, display_labels, title=title)

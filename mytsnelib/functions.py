@@ -1,11 +1,14 @@
 import numpy as np
-from mytsnelib import similarities
+from collections.abc import Sequence
 import time
 import gc
+from mytsnelib import similarities
 
+def _is_array_like(input) -> bool:
+    return isinstance(input, (np.ndarray, Sequence)) and not isinstance(input, str)
 
 #===Gradiente====================================================================================================
-def gradient(P, Q, y, y_dist, caso="safe") -> np.ndarray:
+def gradient(P:np.ndarray, Q:np.ndarray, y:np.ndarray, y_dist:np.ndarray, caso="safe") -> np.ndarray:
     match caso:
         case "safe":
             return __gradient_safe(P,Q,y,y_dist)
@@ -16,7 +19,8 @@ def gradient(P, Q, y, y_dist, caso="safe") -> np.ndarray:
         case _:
             raise ValueError("Only accepted cases are safe, forces, and forces_v2")
 #----------------------------------------------------------------------------------------------------------------
-def __gradient_safe(P, Q, y, y_dist) -> np.ndarray:
+def __gradient_safe(P:np.ndarray, Q:np.ndarray, y:np.ndarray,y_dist:np.ndarray) -> np.ndarray:
+    # y_dist = similarities.pairwise_euclidean_distance(y)
     not_diag = np.expand_dims(~np.eye(P.shape[0], dtype=bool), axis=2)
     # pq[i][j] = P[i][j] - Q[i][j]
     pq = P-Q
@@ -108,19 +112,17 @@ class TSne():
     ----------
     n_dimensions : int, default=2
         The number of dimensions in the embedding space.
-    perplexity : float, default=30.0
+    perplexity : int or float, default=30.0
         TODO: explicarlo
     perplexity_tolerance: float, default=1e-10
         TODO: explicarlo
     metric : str, default='euclidean'
         The metric for the distance calculations
-    init_method : str, default="random"
+    init : str or Array-Like of at least 2 dimensions, default='random'
         TODO: explicarlo
-    init_embed : ndarray of shape (n_samples, n_components), default=None
+    early_exaggeration : int or float, default=12.
         TODO: explicarlo
-    early_exaggeration : float, default=None
-        TODO: explicarlo
-    learning_rate : float, default=500.
+    learning_rate : str or float, default='auto'
         TODO: explicarlo
     max_iter : int, default=1000
         TODO: explicarlo
@@ -132,52 +134,53 @@ class TSne():
         Verbosity level (all levels include all info from previous levels):
             0 displays no info
             1 displays total execution time and time / iteration
-            2 displays
+            2 displays iteration info every *iters_check* iterations
         TODO: explicarlo
     iters_check : int, default=50
         TODO: explicarlo
 
     Attributes
     ----------
-    embed_history
 
     
     """
-
-
     def __init__(self, *, n_dimensions=2, perplexity=30., perplexity_tolerance=1e-10,
-                 metric='euclidean', init_method="random", init_embed=None, early_exaggeration=12.,
+                 metric='euclidean', init:str|Sequence|np.ndarray="random", early_exaggeration=12.,
                  learning_rate:str|float="auto", max_iter=1000, momentum_params=[250.,0.5,0.8], seed:int=None, verbose=0, iters_check=50):
         
         #===validacion de parametros=================================================================================
-        self.__input_validation(n_dimensions, perplexity, perplexity_tolerance, metric, init_method, init_embed,early_exaggeration, learning_rate, max_iter, momentum_params, seed, verbose, iters_check)
+        self.__init_validation(n_dimensions, perplexity, perplexity_tolerance, metric, init, early_exaggeration, learning_rate, max_iter, momentum_params, seed, verbose, iters_check)
 
         #===inicializacion de la clase===============================================================================
         self.n_dimensions = n_dimensions if isinstance(n_dimensions, int) else int(np.floor(n_dimensions))
         self.perplexity = perplexity
         self.perplexity_tolerance = perplexity_tolerance
-        self.metric = metric
-        self.init_method = init_method
+        self.metric = metric.lower()
+        if isinstance(init, Sequence) and not isinstance(init, str):
+            self.init = np.array(init)
+        else:
+            self.init = init
         self.learning_rate = learning_rate
         self.lr = None
         self.max_iter = max_iter
-        self.init_embed = init_embed
         self.momentum_params = momentum_params
         self.early_exaggeration = 12. if early_exaggeration is None else early_exaggeration
         self.verbose = verbose
         self.iters_check = iters_check
+        self.seed = seed
         self.rng = np.random.default_rng(int(time.time())) if seed is None else np.random.default_rng(seed)
         self.n_neighbors = int(np.floor(3*perplexity))
         
         #===parametros auxiliares====================================================================================
+        self.init_embed = None
         self.best_iter = None
         self.best_embed = None
         self.best_cost = None
 
-    def __input_validation(self,n_dimensions,perplexity,perplexity_tolerance,metric,init_method,init_embed,
+    def __init_validation(self,n_dimensions,perplexity,perplexity_tolerance,metric,init,
                            early_exaggeration,learning_rate,max_iter,momentum_params, seed, verbose, iters_check):
-        accepted_methods = ["random", "precomputed"]
-        accepted_metrics = ["euclidean"]
+        accepted_inits = ["random", "pca"]
+        accepted_metrics = ["euclidean", "precomputed"]
         accepted_momentum_param_types = [np.float64,np.float32]
         invalid_numbers = np.array([np.nan, np.inf])
 
@@ -210,30 +213,32 @@ class TSne():
             elif perplexity_tolerance < 0:
                 raise ValueError("perplexity_tolerance must be a positive number or 0")
         
-        # Distance metric
+        # Metric
         if metric is not None: # metric: str
             if not isinstance(metric, str):
                 raise ValueError("metric must be of str type")
             elif metric not in accepted_metrics:
-                raise ValueError("Only currently accepted metric is euclidean")
+                    raise ValueError("Only metrics accepted are 'euclidean' and 'precomputed'")
         
-        # Init method
-        if init_method is not None: # init_method: str
-            if not isinstance(init_method, str):
-                raise ValueError("init_method must be of str type")
-            else: 
-                if init_method not in accepted_methods:
-                    raise ValueError("Only init_method values accepted are 'random' and 'precomputed'")
-        
-        # Init embed
-        if init_embed is not None: # init_embed: ndarray of shape (n_samples, n_features)
-            if isinstance(init_embed, np.ndarray):
-                if not isinstance(init_embed.ndtype, np.number):
+        # Init
+        if init is not None:
+            if isinstance(init, str):
+                if init.lower() not in accepted_inits:
+                    raise ValueError("Only init_method values accepted are 'random', 'precomputed' and 'pca'")
+                elif metric is not None:
+                    if init.lower()=="pca" and metric.lower()=="precomputed":
+                        raise ValueError("With init cannot be 'pca' when metric is 'precomputed'")
+            elif _is_array_like(init):
+                if isinstance(init, Sequence):
+                    evaluation = np.array(init)
+                else:
+                    evaluation = init
+                if not isinstance(evaluation.dtype, np.number):
                     raise ValueError("Data type of the initial embedding must be a number")
-                elif np.inf in init_embed or np.nan in init_embed:
-                    raise ValueError("init_embed cant have NaN or an infinite number")
+                elif np.inf in init or np.nan in init:
+                    raise ValueError("The initial embedding must not contain NaN or an infinite number")
             else:
-                raise ValueError("init_embed must be a ndarray")
+                raise ValueError("init must be a str or ArrayLike")
         
         # Early exaggeration
         if early_exaggeration is not None: # early_exaggeration: float
@@ -268,7 +273,9 @@ class TSne():
         
         # Momentum parameters
         if momentum_params is not None: # momentum_params: ndarray of shape (3,)
-            if not isinstance(momentum_params, np.ndarray):
+            if not _is_array_like(momentum_params):
+                raise ValueError("momentum_params must be a ndarray of shape (3,)")
+            elif not isinstance(momentum_params, np.ndarray):
                 if np.array(momentum_params).shape!=(3,):
                     raise ValueError("momentum_params must be a ndarray of shape (3,)")
             elif momentum_params.shape!=(3,):
@@ -302,47 +309,45 @@ class TSne():
                 raise ValueError("iters_check must be at least 1")
             elif iters_check>max_iter:
                 raise ValueError("iters_check cannot be greater than max_iter")
-    def __fit_input_validation(self, input, *, embed:np.ndarray=None):
-        if isinstance(input, np.ndarray):
-            result = input
-        elif isinstance(input, (tuple, list)):
+    def __input_validation(self, input):
+        #Check ArrayLike
+        if _is_array_like(input):
             result = np.array(input)
         else:
             raise ValueError("The given input is not array-like")
+
+        if self.metric=="precomputed":
+            if result.ndim!=2:
+                raise ValueError("When metric is 'precomputed', input data must be a square distance matrix")
+            elif result.shape[0]!=input.shape[1]:
+                raise ValueError("When metric is 'precomputed', input data must be a square distance matrix")
         
-        if len(result)<10:
-            raise ValueError("Not enough samples. Must be at least 10 samples.")
-        if embed is not None:
-            if len(input) != len(embed):
-                raise ValueError("The input data must have the same number of samples as the given embedding")
-        if len(result) <= self.perplexity:
-            raise ValueError("The number of samples cannot be lower than the number of neighbors")
-        
+        minimum_samples = 2*self.n_neighbors
+        if len(result)<minimum_samples:
+            raise ValueError("Not enough samples. The given perplexity requires at least {} samples".format(minimum_samples))
+        if self.init is not None:
+            if _is_array_like(self.init):
+                if len(input) != self.init.shape[0]:
+                    raise ValueError("The input data must have the same number of samples as the given embedding")
         if result.ndim>2:
-            dims = 1
-            for d in result.shape[1:]:
-                dims*=d
-            return np.reshape(result.copy(), (len(result), dims))
+            return result.reshape((len(result), np.prod(result.shape[1:])))
         return result
-    def __rand_embed(self, *, n_samples:int, n_dimensions:int) -> np.ndarray:
-        """Returns a random embedding following the given parameters.
-
-        Parameters
-        ----------
-        n_samples: int.
-            The number of samples to have in the embedding.
-        n_dimensions: int.
-            The number of dimentsions in the embedding.
-        
-        Returns
-        ----------
-        embed: ndarray of shape (n_samples, n_features).
-            Random embedding that follows a standard distribution.
-
-        """
-        assert n_samples is not None
+    def __rand_embed(self, input, n_dimensions) -> np.ndarray:
         assert n_dimensions is not None
-        return self.rng.standard_normal(size=(n_samples, n_dimensions))
+        n_samples = len(input)
+        if self.init is None:
+            return self.rng.standard_normal(size=(n_samples, n_dimensions))
+        elif isinstance(self.init, str):
+            if self.init.lower()=="pca":
+                from sklearn.decomposition import PCA
+                pca = PCA(n_components=n_dimensions, svd_solver="randomized", random_state=self.seed)
+                pca.set_output(transform="default")
+                data_embedded = pca.fit_transform(input).astype(np.float32, copy=False)
+                return data_embedded / np.std(data_embedded[:, 0]) * 1e-4
+            else: #init = "random"
+                return self.rng.standard_normal(size=(n_samples, n_dimensions))
+        else:
+            return self.init
 
     def fit(self, input) -> np.ndarray:
         """Fit the given data and perform the embedding
@@ -355,25 +360,24 @@ class TSne():
             Array with the class that each element in X belongs to.
         """
 
-        #====Input con dimensiones correctas y embed inicial=====================================================================================================
-        X = self.__fit_input_validation(input, embed=self.init_embed)
+        #====Tiempo de inicio para verbosidad====================================================================================================================
+        t0 = time.time_ns()
+
+        #====Input con dimensiones correctas=====================================================================================================================
+        X = self.__input_validation(input)
+        self.init_embed = self.__rand_embed(X, self.n_dimensions)
         
+        #====Obtener P===========================================================================================================================================
+        dist_original = X if self.metric=="precomputed" else similarities.pairwise_euclidean_distance(X) #solo es necesario para calcular P
         
         #====Ajuste del learning rate============================================================================================================================
         if self.learning_rate == "auto":
-            self.lr = X.shape[0] / self.early_exaggeration
+            self.lr = len(dist_original) / self.early_exaggeration
             self.lr = np.maximum(self.lr, 50)
         else:
             self.lr = self.learning_rate
 
-        #====Tiempo de inicio para verbosidad====================================================================================================================
-        t0 = time.time_ns()
-        
-        #====Obtener P===========================================================================================================================================
-        dist_original = similarities.pairwise_euclidean_distance(X) #solo es necesario para calcular P
-
         p = similarities.joint_probabilities_gaussian(dist_original, self.perplexity, self.perplexity_tolerance)
-        
         del dist_original #dist_original ya no hace falta
 
         #====Descenso de gradiente===============================================================================================================================
@@ -410,64 +414,60 @@ class TSne():
 
     def __gradient_descent(self, t, p):
         n_samples_ = len(p)
-        if self.init_embed is None:
-            self.init_embed = self.__rand_embed(n_samples=n_samples_, n_dimensions=self.n_dimensions)
-        current_embed = self.init_embed.copy()
+
+        embed = self.init_embed.copy()
         #====dist_embed==========================================================================================================================================
-        current_embed_dist = similarities.pairwise_euclidean_distance(current_embed)
+        embed_dist = similarities.pairwise_euclidean_distance(embed)
         
         #====q===================================================================================================================================================
-        q = similarities.joint_probabilities_student(current_embed_dist)
+        q = similarities.joint_probabilities_student(embed_dist)
         
         #===Parametros para el coste=============================================================================================================================
         cost = kl_divergence(p, q)
         best_iter_ = 1
         best_cost_ = cost
-        best_embed_ = np.reshape(current_embed.copy(), (-1), order='C')
+        best_embed_ = embed.reshape(-1, order='C')
 
         #===Parametros extra=====================================================================================================================================
         lr = self.lr
-        early = self.early_exaggeration
         iter_threshold = int(self.momentum_params[0])
         momentum = self.momentum_params[1]
-        previous_embed = np.copy(current_embed)
-        
-        for i in range(t):
+        previous_embed = np.zeros_like(embed, dtype=embed.dtype)
+        for i in range(1, t): # i=0 es el inicial
             if self.verbose>1 and i%self.iters_check==0:
                 print("---------------------------------")
                 print("Comenzando iteracion {}/{}".format(i,t))
             #====grad================================================================================================================================================
-            grad = gradient(p, q, current_embed, current_embed_dist, caso="safe")
+            grad = gradient(p, q, embed, embed_dist, caso="safe")
 
             #====embed===============================================================================================================================================
             #y{i} = y{i-1} + learning_rate*gradiente + momentum(t) * (y{i-1} - y{i-2})
-            new_embed = current_embed - lr*grad + momentum*(current_embed-previous_embed)
-            del grad
+            diff = embed-previous_embed
+            previous_embed = embed.copy()
+            embed -= lr*grad
+            embed += momentum*diff
+            del grad, diff
             #====momentum change=====================================================================================================================================
             if i==iter_threshold:
-                p /= early
-                early = 1
+                p /= self.early_exaggeration
                 momentum = self.momentum_params[2]
 
             #====dist_embed==========================================================================================================================================
-            current_embed_dist = similarities.pairwise_euclidean_distance(new_embed)
+            embed_dist = similarities.pairwise_euclidean_distance(embed)
             #====q===================================================================================================================================================
-            q = similarities.joint_probabilities_student(current_embed_dist)
+            q = similarities.joint_probabilities_student(embed_dist)
             
             if i%self.iters_check==0 or i==t-1:
                 cost = kl_divergence(p, q)
                 if cost<best_cost_:
                     best_iter_ = i
                     best_cost_ = cost
-                    best_embed_ = np.reshape(new_embed.copy(),(-1), order='C')
-            #actualizar y(t-1), y(t-2)
-            previous_embed = current_embed.copy()
-            current_embed = new_embed.copy()
+                    best_embed_ = embed.reshape(-1, order='C')
             gc.collect() #liberar memoria despues de cada iteracion
         self.best_iter = best_iter_
         self.best_cost = best_cost_
-        self.best_embed = np.reshape(best_embed_.copy(), [n_samples_, self.n_dimensions], order='C')
-        return current_embed
+        self.best_embed = best_embed_.reshape(n_samples_, self.n_dimensions, order='C')
+        return embed
 
     def get_best_embedding_cost_info(self):
         assert self.best_embed is not None

@@ -42,7 +42,7 @@ else:
 caso_prueba = "mio"
 display_embed = False
 print_tiempo = True
-print_trust = False
+print_trust = True
 #=================================================================#
 
 match caso_prueba:
@@ -51,9 +51,10 @@ match caso_prueba:
     case "skl":
         comp.probar_sklearn(data_entrenamiento, labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo, trust=print_trust)
     case "pca":
-        comp.probar_pca(data_train,labels_train, display=display_embed, print_tiempo=print_tiempo)
+        # comp.probar_pca(data_train,labels_train, display=display_embed, print_tiempo=print_tiempo, trust=print_trust)
+        comp.probar_pca(data_entrenamiento,labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo, trust=print_trust)
     case "autoencoders":
-        comp.probar_autoencoder(data_train, test_data=data_test, test_labels=labels_test, display=display_embed, display_amount=1000, print_tiempo=print_tiempo)
+        comp.probar_autoencoder(data_train, test_data=data_test, test_labels=labels_test, display=display_embed, display_amount=1000, print_tiempo=print_tiempo, trust=print_trust)
     case "dims":
         print("data.ndim: {}".format(input.ndim))
         print("Data shape: {}".format(input.shape))

@@ -41,12 +41,11 @@ def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, tolerance:flo
     -------
     probabilities : ndarray of shape (n_samples, n_samples) that contains the joint probabilities between the points given.
     """
-    n = len(dists)
     not_diag = ~np.eye(dists.shape[0], dtype=bool)
     cond_probs = np.zeros_like(dists, dtype=float)
-    for i in range(n):
+    for i in range(len(dists)):
         cond_probs[i] = __search_cond_p(dists[i:i+1, :], perplexity, tolerance, search_iters, not_diag[i:i+1,:])
-    result = (cond_probs+cond_probs.T)/(2*n)
+    result = (cond_probs+cond_probs.T)/(2*len(dists))
     del cond_probs
     return result
 #---Deviations-------------------------------------------------------------
@@ -136,9 +135,8 @@ def get_neighbor_ranking_by_distance_fast(distances) -> np.ndarray:
 
 def get_is_neighbor(distances:np.ndarray, n_neighbors):
     result = np.zeros(shape=distances.shape, dtype=bool)
+    filas = np.array([1 for _ in range(len(n_neighbors))], dtype=int)
     indices_neighbors = np.argsort(distances, axis=1)[:,:n_neighbors]
     for i in range(len(result)):
-        result[i, indices_neighbors[i]] = True
-    # f = lambda i, j, indices: indices[i].__contains__(j)
-    # result = np.fromfunction(f, shape=distances.shape, indices=indices_neighbors)
+        result[filas*i, indices_neighbors[i]] = True
     return result

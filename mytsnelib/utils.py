@@ -88,4 +88,6 @@ def print_tiempo(t, metodo="Mio"):
 def print_trust(data, embed, metodo):
     import sklearn.manifold as mnf
     trust = mnf.trustworthiness(data, embed)
-    print("Trust con " + metodo + "{:.6f}".format(trust))
+    print("============================================")
+    print("Trust con {}: {:.6f}".format(metodo, trust))
+    print("============================================")
