@@ -112,11 +112,11 @@ def get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:
     neighbors = distances.shape[1]
 
     result = np.ones_like(distances).astype(int)
-    indices_sorted = np.argsort(distances)
+    indices_sorted = np.argsort(distances, axis=1)
 
     #recorrer los individuos
-    for i in range(0, n):
-        for rank in range(0, neighbors):
+    for i in range(n):
+        for rank in range(neighbors):
             j = indices_sorted[i][rank]
             result[i][j] = rank+1
     return result
@@ -126,10 +126,19 @@ def get_neighbor_ranking_by_distance_fast(distances) -> np.ndarray:
         raise ValueError("distances must be a square 2D array")
 
     result = np.ones_like(distances).astype(int)
-    indices_sorted = np.argsort(distances)
+    indices_sorted = np.argsort(distances, axis=1)
 
     filas, columnas = np.indices(distances.shape)
 
     result[filas, indices_sorted] += columnas
     
+    return result
+
+def get_is_neighbor(distances:np.ndarray, n_neighbors):
+    result = np.zeros(shape=distances.shape, dtype=bool)
+    indices_neighbors = np.argsort(distances, axis=1)[:,:n_neighbors]
+    for i in range(len(result)):
+        result[i, indices_neighbors[i]] = True
+    # f = lambda i, j, indices: indices[i].__contains__(j)
+    # result = np.fromfunction(f, shape=distances.shape, indices=indices_neighbors)
     return result

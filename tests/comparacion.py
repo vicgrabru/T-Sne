@@ -41,17 +41,14 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
     
     if print_tiempo:
         ut.print_tiempo(t_diff, metodo="Mio", n_digits_ms=6)
-    
+    if trust:
+        ut.print_trust(data, data_embedded, "mio")
     if display:
         best_iter, best_cost = model.get_best_embedding_cost_info()
         title = "Mostrando embedding con mejor coste, en la iteracion {}/{}".format(best_iter, max_iter)
         embed = np.copy(data_embedded)
         ut.display_embed(embed, labels, title=title)
         del embed,title
-    
-    
-    if trust:
-        print_trust(data, data_embedded, "mio")
 
     del t_diff,t0
     del data_embedded,model,momentum_params,perplexity_tolerance,verbosidad
@@ -71,13 +68,13 @@ def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=Fals
                      verbose=verbosidad)
     data_embedded = model.fit_transform(data)
     t_diff = (time.time_ns()-t0)*1e-9
-    
     if print_tiempo:
         ut.print_tiempo(t_diff, metodo="Scikit-learn", n_digits_ms=6)
+    if trust:
+        ut.print_trust(data, data_embedded, "Scikit-Learn")
     if display:
         ut.display_embed(data_embedded, labels, title=title)
-    if trust:
-        print_trust(data, data_embedded, "Scikit-Learn")
+    
 
 
 #===PCA======================================================================#
@@ -174,9 +171,4 @@ def probar_open(data, labels, *, verbose=1, display=False, title=None):
 #=======================================================================================================#
 #=======================================================================================================#
 
-def print_trust(data, embed, metodo):
-    import sklearn.manifold as mnf
-    trust = mnf.trustworthiness(data, embed)
-    trust_exacto = int(np.floor(trust))
-    trust_ms = str(trust-trust_exacto)[2:8]
-    print("Trust con {}: {}.{}".format(metodo, trust_exacto, trust_ms))
+

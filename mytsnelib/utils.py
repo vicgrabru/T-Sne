@@ -88,3 +88,10 @@ def print_tiempo(t, metodo="Mio", n_digits_ms=6):
             print("Execution time (h:min:sec): {}:{}:{}".format(tH,tM,stringS))
     print("Execution time (s): {}".format(t))
     print("=====================================================")
+
+def print_trust(data, embed, metodo):
+    import sklearn.manifold as mnf
+    trust = mnf.trustworthiness(data, embed)
+    trust_exacto = int(np.floor(trust))
+    trust_ms = str(trust-trust_exacto)[2:8]
+    print("Trust con {}: {}.{}".format(metodo, trust_exacto, trust_ms))

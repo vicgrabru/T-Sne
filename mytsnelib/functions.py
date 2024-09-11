@@ -31,30 +31,28 @@ def __gradient_safe(P, Q, y, y_dist) -> np.ndarray:
     result_ = np.expand_dims(pq, 2) * y_diff * np.expand_dims(dist, 2)
 
     result = 4 * result_.sum(axis=1, where=not_diag)
-    del result_, y_diff
+    del result_, dist, y_diff, pq
     return result
 
 def __gradient_forces(P, Q, y, y_dist) -> np.ndarray:
+    not_diag = np.expand_dims(~np.eye(P.shape[0], dtype=bool), axis=2)
     y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
 
     # paso 1: obtener Z
     dists = (1+y_dist)**(-1)
-    np.fill_diagonal(dists, 0)
-    z = np.sum(dists)
+    z = np.sum(dists, where=not_diag[0])
 
     # paso 2: calcular fuerzas atractivas y repulsivas
     # fuerzas atractivas
     pq = P*Q*z
-    np.fill_diagonal(pq, 0)
-    attractive = np.expand_dims(pq, 2)* y_diff
+    attractive = np.sum(np.expand_dims(pq, 2)* y_diff, 1, where=not_diag)
 
     # fuerzas repulsivas
     q2 = (Q**2)*z
-    np.fill_diagonal(q2, 0)
-    repulsive = np.expand_dims(q2, 2)* y_diff
-
+    repulsive = np.sum(np.expand_dims(q2, 2)* y_diff, 1, where=not_diag)
+    
     # paso 3: combinacion
-    return 4*(np.sum(attractive, 1) - np.sum(repulsive, 1))
+    return 4*(attractive - repulsive)
 def __gradient_forces_v2(P, Q, y, y_dist) -> np.ndarray:
     """
     Optimizaciones sacadas de esta pagina
@@ -169,6 +167,7 @@ class TSne():
         self.verbose = verbose
         self.iters_check = iters_check
         self.rng = np.random.default_rng(int(time.time())) if seed is None else np.random.default_rng(seed)
+        self.n_neighbors = int(np.floor(3*perplexity))
         
         #===parametros auxiliares====================================================================================
         self.best_iter = None
@@ -372,6 +371,7 @@ class TSne():
         
         #====Obtener P===========================================================================================================================================
         dist_original = similarities.pairwise_euclidean_distance(X) #solo es necesario para calcular P
+        
         p = similarities.joint_probabilities_gaussian(dist_original, self.perplexity, self.perplexity_tolerance)
         
         del dist_original #dist_original ya no hace falta
