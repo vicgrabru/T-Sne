@@ -70,28 +70,22 @@ def display_embed(embed, labels, *, title=None):
     plt.show()
 
 
-def print_tiempo(t, metodo="Mio", n_digits_ms=6):
+def print_tiempo(t, metodo="Mio"):
     t_exact = np.floor(t)
-    tMS = str(t-t_exact)[2:n_digits_ms+2]
-    tS = int(t_exact%60)
-    tM = int(np.floor(t_exact/60)%60)
     tH = int(np.floor(t_exact/3600))
-    stringS = "{}.{}".format(tS,tMS)
-    if tS<10:
-        stringS = "0"+stringS
+    tM = int(np.floor(t_exact/60)-60*tH)
+    tS = "{:.6f}".format(t-(3600*tH+60*tM)).zfill(9)
     print("=====================================================")
     print(metodo + " finished")
     if t_exact>60:
         if t_exact<3600: # <1h
-            print("Execution time (min:sec): {}:{}".format(tM,stringS))
+            print("Execution time (min:sec): {}:{}".format(tM,tS))
         else:
-            print("Execution time (h:min:sec): {}:{}:{}".format(tH,tM,stringS))
+            print("Execution time (h:min:sec): {}:{}:{}".format(tH,tM,tS))
     print("Execution time (s): {}".format(t))
     print("=====================================================")
 
 def print_trust(data, embed, metodo):
     import sklearn.manifold as mnf
     trust = mnf.trustworthiness(data, embed)
-    trust_exacto = int(np.floor(trust))
-    trust_ms = str(trust-trust_exacto)[2:8]
-    print("Trust con {}: {}.{}".format(metodo, trust_exacto, trust_ms))
+    print("Trust con " + metodo + "{:.6f}".format(trust))

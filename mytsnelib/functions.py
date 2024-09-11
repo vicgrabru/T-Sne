@@ -371,7 +371,7 @@ class TSne():
         
         #====Obtener P===========================================================================================================================================
         dist_original = similarities.pairwise_euclidean_distance(X) #solo es necesario para calcular P
-        
+
         p = similarities.joint_probabilities_gaussian(dist_original, self.perplexity, self.perplexity_tolerance)
         
         del dist_original #dist_original ya no hace falta
@@ -381,20 +381,19 @@ class TSne():
         
         #====Salida por consola de verbosidad====================================================================================================================
         if self.verbose>0:
-            t_diff = (time.time_ns()-t0)*1e-9
+            t = (time.time_ns()-t0)*1e-9
             strings_imprimir = []
             while len(strings_imprimir)<2:
                 if len(strings_imprimir)==1:
-                    t_diff /=self.max_iter
-                t_diff_exact = np.floor(t_diff)
-                
-                tS = str(t_diff_exact%60 + (t_diff - t_diff_exact))[:8]
-                tM = int(np.floor(t_diff_exact/60)%60)
-                tH = int(np.floor(t_diff_exact/3600))
+                    t /=self.max_iter
+                t_exact = np.floor(t)
+                tH = int(np.floor(t_exact/3600))
+                tM = int(np.floor(t_exact/60)-60*tH)
+                tS = "{:.9f}".format(t-(3600*tH+60*tM)).zfill(12)
 
-                if t_diff_exact>3600:
+                if t>3600:
                     strings_imprimir.append("(h:min:sec): {}:{}:{}".format(tH,tM,tS))
-                elif t_diff_exact>60:
+                elif t>60:
                     strings_imprimir.append("(min:sec): {}:{}".format(tM,tS))
                 else:
                     strings_imprimir.append("(s): {}".format(tS))
@@ -403,7 +402,7 @@ class TSne():
             print("Execution time {}".format(strings_imprimir[0]))
             print("Time/Iteration {}".format(strings_imprimir[1]))
             print("====================================")
-            del t0,t_diff,t_diff_exact,tS,tM,tH,strings_imprimir
+            del t0,t,t_exact,tS,tM,tH,strings_imprimir
         
         return final_embed
     
