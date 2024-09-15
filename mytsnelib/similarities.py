@@ -45,21 +45,19 @@ def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, tolerance:flo
     cond_probs = np.zeros_like(dists, dtype=float)
     for i in range(len(dists)):
         cond_probs[i] = __search_cond_p(dists[i:i+1, :], perplexity, tolerance, search_iters, not_diag[i:i+1,:])
-    result = (cond_probs+cond_probs.T)/(2*len(dists))
-    del cond_probs
-    return result
+    return (cond_probs+cond_probs.T)/(2*len(dists))
 #Deviations
 def __search_cond_p(dist, perplexity_goal, tolerance, iters, not_diag, *, min_deviation=1e-20, max_deviation=1e5) -> float:
     for _ in range(iters):
         new_deviation = np.mean([min_deviation, max_deviation])
         p_ = __conditional_p(dist, np.array([new_deviation]), not_diag)
         diff = __perplexity(p_) - perplexity_goal
+        if abs(diff) <= tolerance:
+            return p_[0]
         if diff > 0: # nueva_perplejidad > objetivo
             max_deviation = new_deviation
         else: # nueva_perp < objetivo
             min_deviation = new_deviation
-        if abs(diff) <= tolerance:
-            return p_[0]
     return p_[0]
 #Perplexity
 def __perplexity(cond_p:np.ndarray) -> np.ndarray:

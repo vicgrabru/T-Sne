@@ -20,23 +20,12 @@ def gradient(P:np.ndarray, Q:np.ndarray, y:np.ndarray, y_dist:np.ndarray, caso="
             raise ValueError("Only accepted cases are safe, forces, and forces_v2")
 #----------------------------------------------------------------------------------------------------------------
 def __gradient_safe(P:np.ndarray, Q:np.ndarray, y:np.ndarray,y_dist:np.ndarray) -> np.ndarray:
-    # y_dist = similarities.pairwise_euclidean_distance(y)
     not_diag = np.expand_dims(~np.eye(P.shape[0], dtype=bool), axis=2)
-    # pq[i][j] = P[i][j] - Q[i][j]
-    pq = P-Q
-    
-    # y_diff[i][j][k] = y[i][k] - y[j][k]
     y_diff =  np.expand_dims(y,1)-np.expand_dims(y,0)
 
-    # dist[i][j] = (1 + y_dist[i][j])**(-1)
-    dist = (1+y_dist)**(-1)
+    result = np.expand_dims(P-Q, 2) * y_diff * np.expand_dims(1/(1+y_dist), 2)
 
-    # result_[i][j][k] = (p[i][j]-q[i][j])*(y[i][k]-y[j][k])*((1+y_dist[i][j])^(-1))
-    result_ = np.expand_dims(pq, 2) * y_diff * np.expand_dims(dist, 2)
-
-    result = 4 * result_.sum(axis=1, where=not_diag)
-    del result_, dist, y_diff, pq, not_diag
-    return result
+    return 4 * result.sum(axis=1, where=not_diag)
 
 def __gradient_forces(P, Q, y, y_dist) -> np.ndarray:
     not_diag = np.expand_dims(~np.eye(P.shape[0], dtype=bool), axis=2)
@@ -414,55 +403,50 @@ class TSne():
         return result
     
     def __gradient_descent(self, t, p, return_last=False):
-        embed = self.init_embed.copy()
-        #====dist_embed==========================================================================================================================================
-        embed_dist = similarities.pairwise_euclidean_distance(embed)
-        
-        #====q===================================================================================================================================================
-        q = similarities.joint_probabilities_student(embed_dist)
-        
-        #===Parametros para el coste=============================================================================================================================
-        cost = kl_divergence(p, q)
-        best_iter_ = 0
-        best_cost_ = cost
-        best_embed_ = embed.copy()
-
-        #===Parametros extra=====================================================================================================================================
+        #==== Parametros extra ===================================================================================================================================
         iter_threshold = int(self.momentum_params[0])
         momentum = self.momentum_params[1]
-        previous_embed = np.zeros_like(embed, dtype=embed.dtype) # y(t-2)
-        for i in range(1, t):
+        
+        
+        embed = self.init_embed.copy()
+        previous_embed = np.zeros(self.init_embed.shape, dtype=embed.dtype) # y(t-2)
+        best_embed_ = previous_embed.flatten()
+
+        
+        for i in range(0, t+1):
             if self.verbose>1 and i%self.iters_check==0:
                 print("---------------------------------")
                 print("Comenzando iteracion {}/{}".format(i,t))
-            #====grad================================================================================================================================================
-            grad = gradient(p, q, embed, embed_dist, caso="safe")
-
-            #====embed===============================================================================================================================================
-            #y{i} = y{i-1} + learning_rate*gradiente + momentum(t) * (y{i-1} - y{i-2})
             
-            diff = embed-previous_embed
-            previous_embed = embed.copy()
-            embed -= self.lr*grad
-            embed += momentum*diff
-            del grad, diff
 
-            #====momentum change=====================================================================================================================================
+            #==== embed_dist ========================================================================================================================================
+            embed_dist = similarities.pairwise_euclidean_distance(embed)
+            
+            #==== q =================================================================================================================================================
+            q = similarities.joint_probabilities_student(embed_dist)
+            
+            #==== cost ==============================================================================================================================================
+            if i%self.iters_check==0 or i==t:
+                cost = kl_divergence(p, q)
+                if self.embed_cost is None or cost<self.embed_cost:
+                    self.embed_t = i+1
+                    self.embed_cost = cost
+                    best_embed_ = embed.flatten()
+
+            #==== momentum change ===================================================================================================================================
             if i==iter_threshold:
                 p /= self.early_exaggeration
                 momentum = self.momentum_params[2]
-
-            #====dist_embed==========================================================================================================================================
-            embed_dist = similarities.pairwise_euclidean_distance(embed)
-            #====q===================================================================================================================================================
-            q = similarities.joint_probabilities_student(embed_dist)
             
-            if i%self.iters_check==0 or i==t-1:
-                cost = kl_divergence(p, q)
-                if cost<best_cost_:
-                    best_iter_ = i
-                    best_cost_ = cost
-                    best_embed_ = embed.copy()
+            if i<t:
+                #==== grad ==============================================================================================================================================
+                grad = gradient(p, q, embed, embed_dist, caso="safe")
+
+                #==== embed update ======================================================================================================================================
+                update = momentum*(embed-previous_embed) - grad*self.lr
+                previous_embed = embed.copy()
+                embed += update
+                del grad, update
             # gc.collect() #liberar memoria despues de cada iteracion
         
         if return_last:
@@ -470,9 +454,7 @@ class TSne():
             self.embed_cost = cost
             return embed
         else:
-            self.embed_t = best_iter_+1
-            self.embed_cost = best_cost_
-            return best_embed_
+            return best_embed_.reshape(self.init_embed.shape, order='C')
 
     def get_embedding_cost_info(self):
         assert self.embedding_finished
