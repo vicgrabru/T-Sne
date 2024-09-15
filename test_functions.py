@@ -31,10 +31,12 @@ if usar_conjunto_entero:
     random_indexes = rng.integers(index_start, len(data_full), size=n_samples)
     data_entrenamiento = data_full[random_indexes, :]
     labels_entrenamiento = labels_full[random_indexes]
+    del data_full,labels_full
 else:
     random_indexes = rng.integers(index_start, len(data_train), size=n_samples)
     data_entrenamiento = data_train[random_indexes, :]
     labels_entrenamiento = labels_train[random_indexes]
+del random_indexes
 #=================================================================#
 
 #=================================================================#

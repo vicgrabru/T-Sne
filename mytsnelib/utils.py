@@ -1,5 +1,5 @@
 import csv
-import collections.abc as abc
+from collections.abc import Sequence
 import numpy as np
 import matplotlib.pyplot as plt
 import gc
@@ -30,7 +30,7 @@ def read_csv(route, *, labels_in_first_column=False, num_type=np.int8, skip_star
     start_index = 1 if skip_start_row else 0
     if isinstance(route, str):
         data = np.loadtxt(route, num_type, delimiter=',', skiprows=start_index, ndmin=2)
-    elif isinstance(route, (abc.Sequence, np.ndarray)):
+    elif isinstance(route, (Sequence, np.ndarray)):
         data_full = []
         for r in route:
             data_full.append(np.loadtxt(r, num_type, delimiter=',', skiprows=start_index, ndmin=2))
@@ -75,7 +75,7 @@ def print_tiempo(t, metodo="Mio"):
     tH = int(np.floor(t_exact/3600))
     tM = int(np.floor(t_exact/60)-60*tH)
     tS = "{:.6f}".format(t-(3600*tH+60*tM)).zfill(9)
-    print("=====================================================")
+    print("============================================")
     print(metodo + " finished")
     if t_exact>60:
         if t_exact<3600: # <1h
@@ -83,7 +83,7 @@ def print_tiempo(t, metodo="Mio"):
         else:
             print("Execution time (h:min:sec): {}:{}:{}".format(tH,tM,tS))
     print("Execution time (s): {}".format(t))
-    print("=====================================================")
+    print("============================================")
 
 def print_trust(data, embed, metodo):
     import sklearn.manifold as mnf

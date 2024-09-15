@@ -48,8 +48,8 @@ def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, tolerance:flo
     result = (cond_probs+cond_probs.T)/(2*len(dists))
     del cond_probs
     return result
-#---Deviations-------------------------------------------------------------
-def __search_cond_p(dist, perplexity_goal, tolerance, iters, not_diag, *, min_deviation=1e-20, max_deviation=10000.) -> float:
+#Deviations
+def __search_cond_p(dist, perplexity_goal, tolerance, iters, not_diag, *, min_deviation=1e-20, max_deviation=1e5) -> float:
     for _ in range(iters):
         new_deviation = np.mean([min_deviation, max_deviation])
         p_ = __conditional_p(dist, np.array([new_deviation]), not_diag)
@@ -61,15 +61,14 @@ def __search_cond_p(dist, perplexity_goal, tolerance, iters, not_diag, *, min_de
         if abs(diff) <= tolerance:
             return p_[0]
     return p_[0]
-
-#---Perplexity-------------------------------------------------------------
+#Perplexity
 def __perplexity(cond_p:np.ndarray) -> np.ndarray:
     """Compute the perplexity from all the conditional p_{j|i}
     following the formula
     Perp(P_i) = 2**(-sum( p_{j|i}*log_2(p_{j|i})))
     """
-    return 2**(-np.sum(cond_p*np.nan_to_num(np.log2(cond_p)), 1))
-#---Conditional Probabilities----------------------------------------------
+    return 2**(-np.sum(cond_p*np.log2(cond_p), axis=1, where=cond_p>0.))
+#Conditional Probabilities
 def __conditional_p(distances:np.ndarray, sigmas:np.ndarray, not_diag) -> np.ndarray:
     """Compute the conditional similarities p_{j|i} and p_{i|j}
     using the distances and standard deviations 

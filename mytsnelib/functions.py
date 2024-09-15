@@ -35,7 +35,7 @@ def __gradient_safe(P:np.ndarray, Q:np.ndarray, y:np.ndarray,y_dist:np.ndarray) 
     result_ = np.expand_dims(pq, 2) * y_diff * np.expand_dims(dist, 2)
 
     result = 4 * result_.sum(axis=1, where=not_diag)
-    del result_, dist, y_diff, pq
+    del result_, dist, y_diff, pq, not_diag
     return result
 
 def __gradient_forces(P, Q, y, y_dist) -> np.ndarray:
@@ -104,7 +104,7 @@ def kl_divergence(P, Q) -> float:
         divergence : double.
             The divergence.
     """
-    return np.sum(P*np.nan_to_num(np.log(P/Q)))
+    return np.sum(P*np.log(P/Q), where=P>0.)
 
 class TSne():
     """Class for performing the T-Sne embedding.
@@ -173,9 +173,9 @@ class TSne():
         
         #===parametros auxiliares====================================================================================
         self.init_embed = None
-        self.best_iter = None
-        self.best_embed = None
-        self.best_cost = None
+        self.embed_t = None
+        self.embed_cost = None
+        self.embedding_finished = False
 
     def __init_validation(self,n_dimensions,perplexity,perplexity_tolerance,metric,init,
                            early_exaggeration,learning_rate,max_iter,momentum_params, seed, verbose, iters_check):
@@ -310,7 +310,6 @@ class TSne():
             elif iters_check>max_iter:
                 raise ValueError("iters_check cannot be greater than max_iter")
     def __input_validation(self, input):
-        #Check ArrayLike
         if _is_array_like(input):
             result = np.array(input)
         else:
@@ -349,7 +348,7 @@ class TSne():
         else:
             return self.init.copy()
 
-    def fit(self, input) -> np.ndarray:
+    def fit(self, input, return_last=False) -> np.ndarray:
         """Fit the given data and perform the embedding
 
         Parameters
@@ -383,7 +382,8 @@ class TSne():
             del dist_original #dist_original ya no hace falta
         
         #====Descenso de gradiente===============================================================================================================================
-        final_embed = self.__gradient_descent(self.max_iter, p*self.early_exaggeration)
+        result = self.__gradient_descent(self.max_iter, p*self.early_exaggeration, return_last)
+        
         
         #====Salida por consola de verbosidad====================================================================================================================
         if self.verbose>0:
@@ -410,11 +410,10 @@ class TSne():
             print("====================================")
             del t0,t,t_exact,tS,tM,tH,strings_imprimir
         
-        return final_embed
+        self.embedding_finished = True
+        return result
     
-    def __gradient_descent(self, t, p):
-        n_samples_ = len(p)
-
+    def __gradient_descent(self, t, p, return_last=False):
         embed = self.init_embed.copy()
         #====dist_embed==========================================================================================================================================
         embed_dist = similarities.pairwise_euclidean_distance(embed)
@@ -424,17 +423,15 @@ class TSne():
         
         #===Parametros para el coste=============================================================================================================================
         cost = kl_divergence(p, q)
-        best_iter_ = 1
+        best_iter_ = 0
         best_cost_ = cost
-        best_embed_ = embed.reshape(-1, order='C')
+        best_embed_ = embed.copy()
 
         #===Parametros extra=====================================================================================================================================
-        lr = self.lr
         iter_threshold = int(self.momentum_params[0])
         momentum = self.momentum_params[1]
-        previous_embed = np.zeros_like(embed, dtype=embed.dtype)
-        # update = np.zeros_like(embed, dtype=embed.dtype)
-        for i in range(0, t):
+        previous_embed = np.zeros_like(embed, dtype=embed.dtype) # y(t-2)
+        for i in range(1, t):
             if self.verbose>1 and i%self.iters_check==0:
                 print("---------------------------------")
                 print("Comenzando iteracion {}/{}".format(i,t))
@@ -446,12 +443,9 @@ class TSne():
             
             diff = embed-previous_embed
             previous_embed = embed.copy()
-            embed -= lr*grad
+            embed -= self.lr*grad
             embed += momentum*diff
             del grad, diff
-
-            # update = momentum*update - lr*grad
-            # embed += update
 
             #====momentum change=====================================================================================================================================
             if i==iter_threshold:
@@ -468,16 +462,21 @@ class TSne():
                 if cost<best_cost_:
                     best_iter_ = i
                     best_cost_ = cost
-                    best_embed_ = embed.reshape(-1, order='C')
+                    best_embed_ = embed.copy()
             # gc.collect() #liberar memoria despues de cada iteracion
-        self.best_iter = best_iter_
-        self.best_cost = best_cost_
-        self.best_embed = best_embed_.reshape(n_samples_, self.n_dimensions, order='C')
-        return embed
+        
+        if return_last:
+            self.embed_t = t
+            self.embed_cost = cost
+            return embed
+        else:
+            self.embed_t = best_iter_+1
+            self.embed_cost = best_cost_
+            return best_embed_
 
-    def get_best_embedding_cost_info(self):
-        assert self.best_embed is not None
-        return self.best_iter, self.best_cost
+    def get_embedding_cost_info(self):
+        assert self.embedding_finished
+        return self.embed_t, self.embed_cost
 
     
 
