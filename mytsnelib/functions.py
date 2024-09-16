@@ -377,27 +377,27 @@ class TSne():
         #====Salida por consola de verbosidad====================================================================================================================
         if self.verbose>0:
             t = (time.time_ns()-t0)*1e-9
-            strings_imprimir = []
-            while len(strings_imprimir)<2:
-                if len(strings_imprimir)==1:
-                    t /=self.max_iter
-                t_exact = np.floor(t)
-                tH = int(np.floor(t_exact/3600))
-                tM = int(np.floor(t_exact/60)-60*tH)
-                tS = "{:.9f}".format(t-(3600*tH+60*tM)).zfill(12)
-
-                if t>3600:
-                    strings_imprimir.append("(h:min:sec): {}:{}:{}".format(tH,tM,tS))
-                elif t>60:
-                    strings_imprimir.append("(min:sec): {}:{}".format(tM,tS))
+            tiempos = np.array([t, t/self.max_iter])
+            tiempos_exacto = np.floor(tiempos)
+            tH = np.floor(tiempos_exacto/3600, dtype=int)
+            tM = np.floor(tiempos_exacto/60, dtype=int)-60*tH
+            tS = tiempos - np.array(tH*3600+tM*60, dtype=float)
+            
+            strings = []
+            for i in range(len(tiempos)):
+                if tiempos[i]>3600:
+                    strings.append("(h:min:sec): {}:{}:{}".format(tH[i],tM[i],tS[i]))
+                elif tiempos[i]>60:
+                    strings.append("(min:sec): {}:{}".format(tM[i],tS[i]))
                 else:
-                    strings_imprimir.append("(s): {}".format(tS))
+                    strings.append("(s): {}".format(tS[i]))
+            
             print("====================================")
             print("Embedding process finished")
-            print("Execution time {}".format(strings_imprimir[0]))
-            print("Time/Iteration {}".format(strings_imprimir[1]))
+            print("Execution time " + strings[0])
+            print("Time/Iteration " + strings[1])
             print("====================================")
-            del t0,t,t_exact,tS,tM,tH,strings_imprimir
+            del t0,t,tiempos,tiempos_exacto,tS,tM,tH,strings
         
         self.embedding_finished = True
         return result
