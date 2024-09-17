@@ -52,10 +52,13 @@ def display_embed(embed, labels, *, title=None):
     is3d = embed.ndim>2
     x = embed.T[0]
     y = embed.T[1]
+    fig = plt.figure()
     if is3d:
+        ax = fig.add_subplot(projection='3d')
         z = embed.T[2]
-        for i in range(0, len(embed)):
-            plt.plot(x[i], y[i], z[i], marker='o', linestyle='', markersize=5, label=labels[i])
+        ax.scatter(x,y,z, marker='o', label=labels)
+        # for i in range(0, len(embed)):
+        #     plt.plot(x[i], y[i], z[i], marker='o', linestyle='', markersize=5, label=labels[i])
     else:
         for i in range(0, len(embed)):
             plt.plot(x[i], y[i], marker='o', linestyle='', markersize=5, label=labels[i])
@@ -86,8 +89,8 @@ def print_tiempo(t, metodo="Mio"):
     print("============================================")
 
 def print_trust(data, embed, metodo):
-    import sklearn.manifold as mnf
-    trust = mnf.trustworthiness(data, embed)
+    from sklearn import manifold
+    trust = manifold.trustworthiness(data, embed)
     print("============================================")
-    print("Trust con {}: {:.6f}".format(metodo, trust))
+    print("Trust con {}: {:.3f} %".format(metodo, trust*100))
     print("============================================")
