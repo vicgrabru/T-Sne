@@ -227,6 +227,9 @@ class TSne():
                     raise ValueError("Data type of the initial embedding must be a number")
                 elif np.inf in init or np.nan in init:
                     raise ValueError("The initial embedding must not contain NaN or an infinite number")
+                elif n_dimensions is not None and evaluation.shape[1]!=n_dimensions:
+                    raise ValueError("The initial embedding must have the number of dimensions provided")
+
             else:
                 raise ValueError("init must be a str or ArrayLike")
         
