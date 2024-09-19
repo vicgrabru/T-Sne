@@ -133,12 +133,12 @@ class TSne():
 
     
     """
-    def __init__(self, *, n_dimensions=2, perplexity=30., perplexity_tolerance=1e-10,
+    def __init__(self, *, n_dimensions=2, perplexity=30., perplexity_tolerance=1e-2,
                  metric='euclidean', init:str|Sequence|np.ndarray="random", early_exaggeration=12.,
-                 learning_rate:str|float="auto", max_iter=1000, momentum_params=[250.,0.5,0.8], seed:int=None, verbose=0, iters_check=50):
+                 learning_rate:str|float="auto", max_iter=1000, starting_momentum=0.5, ending_momentum=0.8, momentum_threshold=250, seed:int=None, verbose=0, iters_check=50):
         
         #===validacion de parametros=================================================================================
-        self.__init_validation(n_dimensions, perplexity, perplexity_tolerance, metric, init, early_exaggeration, learning_rate, max_iter, momentum_params, seed, verbose, iters_check)
+        self.__init_validation(n_dimensions, perplexity, perplexity_tolerance, metric, init, early_exaggeration, learning_rate, max_iter, starting_momentum, ending_momentum, momentum_threshold, seed, verbose, iters_check)
 
         #===inicializacion de la clase===============================================================================
         self.n_dimensions = n_dimensions if isinstance(n_dimensions, int) else int(np.floor(n_dimensions))
@@ -152,26 +152,27 @@ class TSne():
         self.learning_rate = learning_rate
         self.lr = None
         self.max_iter = max_iter
-        self.momentum_params = momentum_params
+        self.momentum_start = starting_momentum
+        self.momentum_end = ending_momentum
+        self.momentum_threshold = momentum_threshold
         self.early_exaggeration = 12. if early_exaggeration is None else early_exaggeration
         self.verbose = verbose
         self.iters_check = iters_check
         self.seed = int(time.time()) if seed is None else seed
         self.rng = np.random.default_rng(self.seed)
-        self.n_neighbors = int(np.floor(3*perplexity))
+        self.n_neighbors = int(perplexity)
         
         #===parametros auxiliares====================================================================================
         self.init_embed = None
-        self.embed_t = None
+        self.embed_i = None
         self.embed_cost = None
         self.embedding_finished = False
 
     def __init_validation(self,n_dimensions,perplexity,perplexity_tolerance,metric,init,
-                           early_exaggeration,learning_rate,max_iter,momentum_params, seed, verbose, iters_check):
+                           early_exaggeration,learning_rate,max_iter, starting_momentum, ending_momentum, momentum_threshold, seed, verbose, iters_check):
         accepted_inits = ["random", "pca"]
         accepted_metrics = ["euclidean", "precomputed"]
-        accepted_momentum_param_types = [np.float64,np.float32]
-        invalid_numbers = np.array([np.nan, np.inf])
+        invalid_numbers = [np.nan, np.inf]
 
         # N dimensions
         if n_dimensions is not None: # n_dimensions: int
@@ -260,21 +261,30 @@ class TSne():
             elif max_iter <1:
                 raise ValueError("max_iter must be a positive number")
         
-        # Momentum parameters
-        if momentum_params is not None: # momentum_params: ndarray of shape (3,)
-            if not _is_array_like(momentum_params):
-                raise ValueError("momentum_params must be a ndarray of shape (3,)")
-            elif not isinstance(momentum_params, np.ndarray):
-                if np.array(momentum_params).shape!=(3,):
-                    raise ValueError("momentum_params must be a ndarray of shape (3,)")
-            elif momentum_params.shape!=(3,):
-                raise ValueError("momentum_params must be a ndarray of shape (3,)")
-            elif momentum_params.dtype not in accepted_momentum_param_types:
-                raise ValueError("The elements of momentum_params must be float(at least float32)")
-            elif np.inf in momentum_params or np.nan in momentum_params:
-                raise ValueError("momentum_params cant have NaN or an infinite number")
-            elif np.min(momentum_params)<=0.:
-                raise ValueError("All elements must be greater than 0")
+        # Starting Momentum
+        if starting_momentum is not None: # starting_momentum: float
+            if not isinstance(starting_momentum, float):
+                raise ValueError("starting_momentum must be of float type")
+            elif starting_momentum in invalid_numbers:
+                raise ValueError("starting_momentum cannot be NaN or inf")
+            elif starting_momentum<=0 or starting_momentum>=1:
+                raise ValueError("starting_momentum must be strictly in the range (0, 1)")
+        
+        # Ending Momentum
+        if ending_momentum is not None: # ending_momentum: float
+            if not isinstance(ending_momentum, float):
+                raise ValueError("ending_momentum must be of float type")
+            elif ending_momentum in invalid_numbers:
+                raise ValueError("ending_momentum cannot be NaN or inf")
+            elif ending_momentum<=0 or starting_momentum>=1:
+                raise ValueError("ending_momentum must be strictly in the range (0, 1)")
+        
+        # Momentum threshold
+        if momentum_threshold is not None: # momentum_threshold: int
+            if not isinstance(momentum_threshold, int):
+                raise ValueError("momentum_threshold must be an integer")
+            elif momentum_threshold not in range(max_iter):
+                raise ValueError("momentum_threshold must be in range(0, max_iter)")
         
         # Seed
         if seed is not None: # seed: int
@@ -404,14 +414,14 @@ class TSne():
     
     def __gradient_descent(self, t, p, return_last=False):
         #==== Parametros extra ===================================================================================================================================
-        iter_threshold = int(self.momentum_params[0])
-        momentum = self.momentum_params[1]
+        iter_threshold = self.momentum_threshold
+        momentum = self.momentum_start
         
         
         embed = self.init_embed.copy()
-        previous_embed = np.zeros(self.init_embed.shape, dtype=embed.dtype) # y(t-2)
-        best_embed_ = previous_embed.flatten()
-
+        # previous_embed = np.zeros(self.init_embed.shape, dtype=embed.dtype) # y(t-2)
+        update = np.zeros_like(embed)
+        best_embed_ = np.zeros_like(embed).flatten()
         
         for i in range(0, t+1):
             if self.verbose>1 and i%self.iters_check==0:
@@ -429,28 +439,30 @@ class TSne():
             if i%self.iters_check==0 or i==t:
                 cost = kl_divergence(p, q)
                 if self.embed_cost is None or cost<self.embed_cost:
-                    self.embed_t = i+1
+                    self.embed_i = i
                     self.embed_cost = cost
                     best_embed_ = embed.flatten()
 
             #==== momentum change ===================================================================================================================================
             if i==iter_threshold:
                 p /= self.early_exaggeration
-                momentum = self.momentum_params[2]
-            
-            if i<t:
-                #==== grad ==============================================================================================================================================
-                grad = gradient(p, q, embed, embed_dist, caso="safe")
+                momentum = self.momentum_end
+            elif i==t:
+                break
+            #==== grad ==============================================================================================================================================
+            grad = gradient(p, q, embed, embed_dist, caso="safe")
 
-                #==== embed update ======================================================================================================================================
-                update = momentum*(embed-previous_embed) - grad*self.lr
-                previous_embed = embed.copy()
-                embed += update
-                del grad, update
+            #==== embed update ======================================================================================================================================
+            # update = momentum*(embed-previous_embed) - grad*self.lr
+            update = momentum*update - grad*self.lr
+            # previous_embed = embed.copy()
+            embed += update
+            # del grad, update
+            del grad
             # gc.collect() #liberar memoria despues de cada iteracion
-        
+
         if return_last:
-            self.embed_t = t
+            self.embed_i = t-1
             self.embed_cost = cost
             return embed
         else:
@@ -458,7 +470,7 @@ class TSne():
 
     def get_embedding_cost_info(self):
         assert self.embedding_finished
-        return self.embed_t, self.embed_cost
+        return self.embed_i, self.embed_cost
 
     
 

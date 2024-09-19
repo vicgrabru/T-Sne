@@ -9,13 +9,16 @@ n_dimensions = 2
 perplexity = 50
 lr = "auto"
 # lr = 500
-early_exaggeration = 4
+early_exaggeration = 12
 max_iter = 5000
 seed = 4
 # seed = int(time.time())
 iters_check = 50
 init = "random"
 fraccionDatosVecinos = 3
+start_momentum = 0.5
+end_momentum = 0.8
+momentum_threshold = 250
 #---Cosas que mostrar por consola----------------------#
 nivel_verbose=0
 #======================================================#
@@ -25,7 +28,7 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
     verbosidad = 0 if print_tiempo else nivel_verbose
     from mytsnelib import functions
     perplexity_tolerance = 1e-10
-    momentum_params = [250, 0.5, 0.8]
+    
     t0 = time.time_ns()
     model = functions.TSne(n_dimensions=n_dimensions,
                         perplexity=perplexity,
@@ -34,7 +37,9 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
                         learning_rate=lr,
                         init=init,
                         max_iter=max_iter,
-                        momentum_params=momentum_params,
+                        starting_momentum = start_momentum,
+                        ending_momentum = end_momentum,
+                        momentum_threshold=momentum_threshold,
                         seed=seed,
                         verbose=verbosidad,
                         iters_check=iters_check)
@@ -53,7 +58,7 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
         del embed,title
 
     del t_diff,t0
-    del data_embedded,model,momentum_params,perplexity_tolerance,verbosidad
+    del data_embedded,model,perplexity_tolerance,verbosidad
 
 #===Scikit-learn=============================================================#
 def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=False, trust=False):
@@ -166,10 +171,26 @@ def probar_bht(data, labels, *, verbose=1, display=False, title=None):
     embedding_bht = bhtsne.tsne(data, initial_dims=data.shape[1])
     
 
-def probar_open(data, labels, *, verbose=1, display=False, title=None):
+def probar_open(data, labels, *, verbose=1, display=False, title=None, print_tiempo=False, trust=False):
     import openTSNE
-    perp = np.floor(len(data)/9)
-    embedding_open = openTSNE.TSNE(n_iter=max_iter, n_components=n_dimensions, perplexity=perp).fit(data)
+    t0 = time.time_ns()
+    model = openTSNE.TSNE(n_iter=max_iter,
+                          n_components=n_dimensions,
+                          perplexity=perplexity,
+                          early_exaggeration=early_exaggeration,
+                          early_exaggeration_iter=momentum_threshold,
+                          initial_momentum=start_momentum,
+                          final_momentum=end_momentum,
+                          learning_rate=lr)
+    data_embedded = model.fit(data)
+    t_diff = (time.time_ns()-t0)*1e-9
+    if print_tiempo:
+        ut.print_tiempo(t_diff, metodo="openTSNE")
+    if trust:
+        ut.print_trust(data, data_embedded, metodo="openTSNE")
+    if display:
+        ut.display_embed(data_embedded, labels, title=title)
+
 #=======================================================================================================#
 #=======================================================================================================#
 #=======================================================================================================#
