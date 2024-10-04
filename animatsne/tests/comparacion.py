@@ -2,26 +2,6 @@ import numpy as np
 import tests.utils as ut
 import time
 
-
-#======================================================#
-#---Parametros para entrenar el modelo-----------------#
-n_dimensions = 2
-perplexity = 50
-lr = "auto"
-# lr = 500
-early_exaggeration = 12
-max_iter = 5000
-seed = 4
-# seed = int(time.time())
-iters_check = 50
-init = "random"
-fraccionDatosVecinos = 3
-start_momentum = 0.5
-end_momentum = 0.8
-momentum_threshold = 250
-
-# nivel_verbose = 1
-
 argumentos_globales_modelos = {
     "n_components": 2,
     "perplexity": 50,
@@ -30,7 +10,6 @@ argumentos_globales_modelos = {
     "learning_rate": "auto",
     "verbose": 1,
 }
-
 argumentos_modelo_mio = {
     "perplexity_tolerance": 1e-10,
     "init": "random",
@@ -40,38 +19,33 @@ argumentos_modelo_mio = {
     "seed": 4,
     "iters_check": 50,
 }
-
 argumentos_modelo_skl = {
     "init": "random",
 }
-
 argumentos_modelo_open = {
     "early_exaggeration_iter": 250,
     "initial_momentum": 0.5,
     "final_momentum": 0.8,
 }
-
 argumentos_pca = {
     "n_components": 2,
     "svd_solver": "randomized",
     "random_state": 4,
 }
-
 argumentos_autoencoders = {
 "epochs": 10,
 "shuffle": True,
 "verbose": 1,
 }
-#======================================================#
 
 #===Mio======================================================================#
 def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, trust=False):
     if print_tiempo:
         argumentos_modelo_mio["verbose"] = 0
-    from animatsne import animatsne
+    import animatsne.anim as anim
     
     t0 = time.time_ns()
-    model = animatsne.TSne(**argumentos_modelo_mio, **argumentos_globales_modelos)
+    model = anim.TSne(**argumentos_modelo_mio, **argumentos_globales_modelos)
     data_embedded = model.fit(data, labels)
     t_diff = (time.time_ns()-t0)*1e-9
     
@@ -81,7 +55,7 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
         ut.print_trust(data, data_embedded, "mio")
     if display:
         best_iter, best_cost = model.get_embedding_cost_info()
-        title = "Mostrando embedding con mejor coste, en la iteracion {}/{}".format(best_iter, max_iter)
+        title = "Mostrando embedding con mejor coste, en la iteracion {}/{}".format(best_iter, argumentos_globales_modelos["n_iter"])
         embed = np.copy(data_embedded)
         ut.display_embed(embed, labels, title=title)
         del embed,title
@@ -172,7 +146,7 @@ def probar_autoencoder(train_data, test_data, test_labels, *, display=False, tit
             return decoded
 
     shape = test_data.shape[1:]
-    autoencoder = Autoencoder(n_dimensions, shape)
+    autoencoder = Autoencoder(argumentos_globales_modelos["n_components"], shape)
 
     # autoencoder.compile(optimizer='adam', loss=MeanSquaredError())
     

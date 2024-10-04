@@ -3,14 +3,11 @@ import time
 import gc
 from matplotlib.markers import MarkerStyle
 from matplotlib.axes import Axes
-from matplotlib.collections import PathCollection
-from matplotlib.artist import Artist
 from matplotlib.path import Path
-import matplotlib.patches
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from collections.abc import Sequence
-from animatsne import similarities
+from . import similarities
 
 def _is_array_like(input) -> bool:
     return isinstance(input, (np.ndarray, Sequence)) and not isinstance(input, str)
