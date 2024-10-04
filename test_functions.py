@@ -52,34 +52,64 @@ match caso_prueba:
         comp.probar_mio(data_entrenamiento, labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo, trust=print_trust)
     case "skl":
         comp.probar_sklearn(data_entrenamiento, labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo, trust=print_trust)
+    case "open":
+        comp.probar_open(data_entrenamiento, labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo, trust=print_trust)
     case "pca":
-        # comp.probar_pca(data_train,labels_train, display=display_embed, print_tiempo=print_tiempo, trust=print_trust)
         comp.probar_pca(data_entrenamiento,labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo, trust=print_trust)
     case "autoencoders":
-        comp.probar_autoencoder(data_train, test_data=data_test, test_labels=labels_test, display=display_embed, display_amount=1000, print_tiempo=print_tiempo, trust=print_trust)
+        comp.probar_autoencoder(data_entrenamiento, test_data=data_entrenamiento, test_labels=labels_entrenamiento, display=display_embed, display_amount=1000, print_tiempo=print_tiempo, trust=print_trust)
     case "dims":
         print("data.ndim: {}".format(input.ndim))
         print("Data shape: {}".format(input.shape))
         input2 = np.ravel(input)
         print("data.flatten.shape: {}".format(input2.shape))
     case "otro":
-        a = np.array([1, 1])
-        b = a
-        c = a.copy()
-        print("a: {}".format(a))
-        print("b: {}".format(b))
-        print("c: {}".format(c))
-        print("--------------------")
-        a[0] = 0
-        b[1] = 2
-        print("a: {}".format(a))
-        print("b: {}".format(b))
-        print("c: {}".format(c))
-        print("--------------------")
-        b+=1
-        print("a: {}".format(a))
-        print("b: {}".format(b))
-        print("c: {}".format(c))
+        import matplotlib.pyplot as plt
+        import matplotlib.animation as animation
+        a = np.array([[[1, 2], [3, 4], [5, 6], [7, 8]], [[9, 10], [11, 12], [13, 14], [15, 16]], [[17, 18], [19, 20], [21, 22], [23, 24]], [[25, 26], [27, 28], [29, 30], [31, 32]]])
+        b = np.array([[[1, 1], [2, 2], [3, 3], [4, 4]], [[5, 5], [6, 6], [7, 7], [8, 8]], [[9, 9], [10, 10], [11, 11], [12,12]], [[13, 13], [14, 14], [15, 15], [16, 16]]])
+        c = np.subtract.outer(a, b)
+
+        fig, ax = plt.subplots()
+
+        
+
+        ani = animation.FuncAnimation()
+
+        
+
+        print("=================")
+        print("a.shape: {}".format(a.shape))
+        print("b.shape: {}".format(b.shape))
+        print("c.shape: {}".format(c.shape))
+        np.einsum('', a, -a)
+        print("=================")
+        # print("a:\n{}".format(a))
+        # print("b:\n{}".format(b))
+        # print("c:\n{}".format(c))
+
+        #a -> (n, k)
+        #b -> (n, k)
+
+        # c = np.empty(len(a),len(b))
+        # for i in range(len(a)):
+        #     for j in range(len(b)):
+        #         c[i,j] = np.subtract(a[i], b[j])
+
+        # i1 = 1
+        # j1 = 2
+        # k1 = 0
+        # i2 = 3
+        # j2 = 1
+        # k2 = 1
+
+
+        # print("a[{}][{}][{}]: {}".format(i1, j1, k1, a[i1][j1][k1]))
+        # print("b[{}][{}][{}]: {}".format(i2, j2, k2, b[i2][j2][k2]))
+        # print("c[{}][{}][{}][{}][{}][{}]: {}".format(i1, j1, k1, i2, j2, k2, c[i1][j1][k1][i2][j2][k2]))
+        # print("c[{}][{}][{}][{}][{}][{}]: {}".format(i2, j2, k2, i1, j1, k1, c[i2][j2][k2][i1][j1][k1]))
+        # print("=================")
+
     case _:
         gc.collect()
 

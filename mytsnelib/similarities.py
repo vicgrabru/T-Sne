@@ -20,7 +20,7 @@ def pairwise_euclidean_distance(X, *, sqrt=False, condensed=False) -> np.ndarray
     return result
 
 #===Joint Probabilities (Gaussian))========================================
-def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, tolerance:float=None, search_iters=1000) -> np.ndarray:
+def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, tolerance:float=None, search_iters=10000) -> np.ndarray:
     """Obtain the joint probabilities (or affinities) of the points with the given distances.
 
     Parameters
@@ -41,38 +41,57 @@ def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, tolerance:flo
     -------
     probabilities : ndarray of shape (n_samples, n_samples) that contains the joint probabilities between the points given.
     """
-    not_diag = ~np.eye(dists.shape[0], dtype=bool)
-    cond_probs = np.zeros_like(dists, dtype=float)
-    for i in range(len(dists)):
-        cond_probs[i] = __search_cond_p(dists[i:i+1, :], perplexity, tolerance, search_iters, not_diag[i:i+1,:])
-    return (cond_probs+cond_probs.T)/(2*len(dists))
+    n = dists.shape[0]
+    not_diag = ~np.eye(n, dtype=bool)
+    cond_probs = np.zeros_like(dists, dtype=np.float64)
+    for i in range(n):
+        cond_probs[i] = __search_cond_p(dists[i:i+1,:], perplexity, tolerance, search_iters, not_diag[i:i+1,:])
+    return (cond_probs+cond_probs.T)/(2*n)
+
 #Deviations
-def __search_cond_p(dist, perplexity_goal, tolerance, iters, not_diag, *, min_deviation=1e-20, max_deviation=1e5) -> float:
+def __search_cond_p(dist, goal, tolerance, iters, not_diag, *, min_deviation=1e-20, max_deviation=1e5) -> float:
     for _ in range(iters):
-        new_deviation = np.mean([min_deviation, max_deviation])
-        p_ = __conditional_p(dist, np.array([new_deviation]), not_diag)
-        diff = __perplexity(p_) - perplexity_goal
+        new_deviation = (min_deviation+max_deviation)/2
+        p = __conditional_p(dist, [new_deviation], not_diag)
+        
+        diff = __perplexity(p) - goal
+        
         if abs(diff) <= tolerance:
-            return p_[0]
+            break
+
         if diff > 0: # nueva_perplejidad > objetivo
             max_deviation = new_deviation
         else: # nueva_perp < objetivo
             min_deviation = new_deviation
-    return p_[0]
+    return p[0]
+
+            
+
 #Perplexity
 def __perplexity(cond_p:np.ndarray) -> np.ndarray:
     """Compute the perplexity from all the conditional p_{j|i}
     following the formula
     Perp(P_i) = 2**(-sum( p_{j|i}*log_2(p_{j|i})))
     """
-    return 2**(-np.sum(cond_p*np.log2(cond_p), axis=1, where=cond_p>0.))
+    # aux = cond_p*np.log2(cond_p)
+    condicion = cond_p!=0
+    eje = None if min(cond_p.shape)==1 else 1
+    return 2**(-np.sum(cond_p*np.log2(cond_p, where=condicion), axis=eje, where=condicion))
+    
+
+
 #Conditional Probabilities
-def __conditional_p(distances:np.ndarray, sigmas:np.ndarray, not_diag) -> np.ndarray:
+def __conditional_p(distances:np.ndarray, sigmas, not_diag) -> np.ndarray:
     """Compute the conditional similarities p_{j|i} and p_{i|j}
     using the distances and standard deviations 
     """
-    aux = np.exp(-distances/(2*np.square(sigmas.reshape([-1,1]))))
-    return aux / aux.sum(axis=1, where=not_diag).reshape([-1,1])
+    aux = np.exp(-distances/(2*np.square(np.reshape(sigmas, [-1,1]))))
+    if min(distances.shape)==1:
+        indice = np.argmin(distances)
+        aux[0][indice]=0.
+    else:
+        np.fill_diagonal(aux, 0.)
+    return aux / aux.sum(axis=1, where=not_diag)
 
 #===Joint Probabilities (T-Student)========================================
 def joint_probabilities_student(distances:np.ndarray)-> np.ndarray:
@@ -97,8 +116,12 @@ def joint_probabilities_student(distances:np.ndarray)-> np.ndarray:
     probabilities : ndarray of shape (n_samples, n_samples) that contains the joint probabilities between the points given.
     """
     d = 1/(1+distances)
-    return d/d.sum(where=~np.eye(distances.shape[0], dtype=bool))
+    return d/(d.sum()-d.trace())
+    # d1 = d.copy()
+    # np.fill_diagonal(d1, 0.)
+    # return d/d1.sum()
 
+    # return d/d.sum(where=~np.eye(distances.shape[0], dtype=bool))
 #===Vecinos mas cercanos===================================================
 def get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:
     if distances.shape.ndim!=2 or len(distances) != distances.shape[1]:

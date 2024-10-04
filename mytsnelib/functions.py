@@ -1,82 +1,29 @@
 import numpy as np
-from collections.abc import Sequence
 import time
 import gc
+from matplotlib.markers import MarkerStyle
+from matplotlib.axes import Axes
+from matplotlib.collections import PathCollection
+from matplotlib.artist import Artist
+from matplotlib.path import Path
+import matplotlib.patches
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from collections.abc import Sequence
 from mytsnelib import similarities
 
 def _is_array_like(input) -> bool:
     return isinstance(input, (np.ndarray, Sequence)) and not isinstance(input, str)
 
 #===Gradiente====================================================================================================
-def gradient(P:np.ndarray, Q:np.ndarray, y:np.ndarray, y_dist:np.ndarray, caso="safe") -> np.ndarray:
-    match caso:
-        case "safe":
-            return __gradient_safe(P,Q,y,y_dist)
-        case "forces":
-            return __gradient_forces(P,Q,y,y_dist)
-        case "forces_v2":
-            return __gradient_forces_v2(P,Q,y,y_dist)
-        case _:
-            raise ValueError("Only accepted cases are safe, forces, and forces_v2")
-#----------------------------------------------------------------------------------------------------------------
-def __gradient_safe(P:np.ndarray, Q:np.ndarray, y:np.ndarray,y_dist:np.ndarray) -> np.ndarray:
-    not_diag = np.expand_dims(~np.eye(P.shape[0], dtype=bool), axis=2)
+def gradient(P:np.ndarray, Q:np.ndarray, y:np.ndarray,y_dist:np.ndarray) -> np.ndarray:
+    # not_diag = np.expand_dims(~np.eye(P.shape[0], dtype=bool), axis=2)
+    pq = P-Q
+    np.fill_diagonal(pq, 0)
+
     y_diff =  np.expand_dims(y,1)-np.expand_dims(y,0)
-
-    result = np.expand_dims(P-Q, 2) * y_diff * np.expand_dims(1/(1+y_dist), 2)
-
-    return 4 * result.sum(axis=1, where=not_diag)
-
-def __gradient_forces(P, Q, y, y_dist) -> np.ndarray:
-    not_diag = np.expand_dims(~np.eye(P.shape[0], dtype=bool), axis=2)
-    y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
-
-    # paso 1: obtener Z
-    dists = (1+y_dist)**(-1)
-    z = np.sum(dists, where=not_diag[0])
-
-    # paso 2: calcular fuerzas atractivas y repulsivas
-    # fuerzas atractivas
-    pq = P*Q*z
-    attractive = np.sum(np.expand_dims(pq, 2)* y_diff, 1, where=not_diag)
-
-    # fuerzas repulsivas
-    q2 = (Q**2)*z
-    repulsive = np.sum(np.expand_dims(q2, 2)* y_diff, 1, where=not_diag)
-    
-    # paso 3: combinacion
-    return 4*(attractive - repulsive)
-def __gradient_forces_v2(P, Q, y, y_dist) -> np.ndarray:
-    """
-    Optimizaciones sacadas de esta pagina
-    Optimizacion 1 -> https://opentsne.readthedocs.io/en/latest/tsne_algorithm.html#attractive-forces
-    Optimizacion 2 -> https://opentsne.readthedocs.io/en/latest/tsne_algorithm.html#repulsive-forces
-    """
-    y_diff = np.expand_dims(y,1) - np.expand_dims(y,0)
-
-    # paso 1: obtener Z
-    dists = 1/(1+y_dist)
-    np.fill_diagonal(dists, 0.)
-    z = dists.sum()
-
-    # paso 2: calcular fuerzas atractivas y repulsivas
-    
-    # fuerzas atractivas
-    # Optimizacion 1: considerar solo los 3*Perplexity vecinos mas cercanos
-    
-    pq = P*Q*z
-    np.fill_diagonal(pq, 0.)
-    attractive = np.multiply(np.expand_dims(pq, 2), y_diff)
-
-    # fuerzas repulsivas
-    # Optimizacion 2: TODO
-    q2 = (Q**2)*z
-    np.fill_diagonal(q2, 0.)
-    repulsive = np.multiply(np.expand_dims(q2, 2), y_diff)
-
-    # paso 3: combinacion
-    return 4*(np.sum(attractive, 1) - np.sum(repulsive, 1))
-
+    result = np.expand_dims(pq, 2) * y_diff * np.expand_dims(1/(1+y_dist), 2)
+    return 4 * result.sum(axis=1)
 #===Funcion de coste: Kullback-Leibler divergence================================================================
 def kl_divergence(P, Q) -> float:
     """Computes the Kullback-Leibler divergence
@@ -93,7 +40,8 @@ def kl_divergence(P, Q) -> float:
         divergence : double.
             The divergence.
     """
-    return np.sum(P*np.log(P/Q), where=P>0.)
+    cond = P!=0.
+    return np.sum(P*np.log(P/Q, where=cond), where=cond)
 
 class TSne():
     """Class for performing the T-Sne embedding.
@@ -161,12 +109,28 @@ class TSne():
         self.seed = int(time.time()) if seed is None else seed
         self.rng = np.random.default_rng(self.seed)
         self.n_neighbors = int(perplexity)
+
+        
+        #===plotting de la representacion
+        
+        # self.plotting_fig, self.plotting_ax = plt.subplots(layout='constrained') if self.n_dimensions==2 else plt.subplots(layout='constrained',subplot_kw=dict({"projection": "3d"}))
+        self.plotting_fig, self.plotting_ax = plt.subplots() if self.n_dimensions==2 else plt.subplots(subplot_kw=dict({"projection": "3d"}))
+        self.plotting_labels = None
+        self.plotting_colors = None
+        self.plotting_markers = None
+        self.plotting_marker_options = ['o','*','v','^','<','>']
+        self.plotting_marker_result = None
+        self.plotting_size = 5
+        
         
         #===parametros auxiliares====================================================================================
-        self.init_embed = None
+        self.embedding_finished = False
         self.embed_i = None
         self.embed_cost = None
-        self.embedding_finished = False
+        self.init_embed = None
+        self.current_embed = None
+        self.best_embed = None
+        self.update = None
 
     def __init_validation(self,n_dimensions,perplexity,perplexity_tolerance,metric,init,
                            early_exaggeration,learning_rate,max_iter, starting_momentum, ending_momentum, momentum_threshold, seed, verbose, iters_check):
@@ -311,7 +275,7 @@ class TSne():
                 raise ValueError("iters_check must be at least 1")
             elif iters_check>max_iter:
                 raise ValueError("iters_check cannot be greater than max_iter")
-    def __input_validation(self, input):
+    def __input_validation(self, input, labels=None):
         if _is_array_like(input):
             result = np.array(input)
         else:
@@ -330,6 +294,68 @@ class TSne():
             if _is_array_like(self.init):
                 if len(input) != self.init.shape[0]:
                     raise ValueError("The input data must have the same number of samples as the given embedding")
+        if labels is not None:
+            if not _is_array_like(input):
+                raise ValueError("The given input is not array-like")
+            else:
+                marker_paths = []
+                for s in self.plotting_marker_options:
+                    m = MarkerStyle(s)
+                    marker_paths.append(m.get_path().transformed(m.get_transform()))
+
+                plotting_labels = np.array(labels, dtype=np.str_)
+                if plotting_labels.ndim!=1:
+                    raise ValueError("labels must be a 1D array")
+                else:
+                    if np.all(np.char.isnumeric(plotting_labels)): #strings de numeros
+                        # np.min_scalar_type
+                        aux = np.array(labels, dtype=int)
+                        self.plotting_labels = aux
+                        self.plotting_colors = aux
+                        # self.plotting_markers = np.empty_like(plotting_labels)
+                        self.plotting_marker_result = np.empty_like(plotting_labels)
+                        self.plotting_markers = np.empty_like(plotting_labels, dtype=Path)
+                        unicos = np.unique(aux)
+                        if unicos.shape[0]>5:
+                            for i in range(unicos.shape[0]):
+                                indices = np.argwhere(aux==unicos[i])
+                                ind_mark = int(i%len(marker_paths))
+                                self.plotting_markers[indices] = marker_paths[ind_mark]
+                                self.plotting_marker_result[indices] = self.plotting_marker_options[ind_mark]
+                        else:
+                            aux2 = MarkerStyle('o')
+                            self.plotting_markers.fill(aux2.get_path().transformed(aux2.get_transform()))
+                            self.plotting_marker_result.fill('o')
+                        
+                    else: #strings genericos
+                        self.plotting_labels = plotting_labels
+                        # self.plotting_markers = np.empty_like(labels, dtype=MarkerStyle)
+                        self.plotting_marker_result = np.empty_like(plotting_labels)
+                        self.plotting_markers = np.empty_like(labels, dtype=Path)
+                        self.plotting_colors = np.empty_like(labels, dtype=int)
+                        
+                        
+                        elementos = np.unique(labels)
+                        n_unique = elementos.shape[0]
+                        
+                        if n_unique<=5:
+                            for i in range(n_unique):
+                                indices = np.argwhere(plotting_labels==elementos[i])
+                                self.plotting_colors[indices] = i
+                            aux = MarkerStyle('o')
+                            self.plotting_markers.fill(aux.get_path().transformed(aux.get_transform()))
+                            self.plotting_marker_result.fill('o')
+                        else:
+                            n = max(np.floor(np.sqrt(n_unique)), 5)
+                            colores = np.array(range(n))
+                            for i in range(n_unique):
+                                indices = np.argwhere(plotting_labels==elementos[i])
+                                self.plotting_colors[indices] = colores[np.divmod(i, n)[0]]
+                                self.plotting_markers[indices] = marker_paths[int(i%len(marker_paths))]
+                                self.plotting_marker_result[indices] = self.plotting_marker_options[int(i%len(marker_paths))]
+        else:
+            self.plotting_marker_result = np.full(shape=len(result), fill_value='o')
+            self.plotting_colors = np.full(shape=len(result), fill_value=1)
         if result.ndim>2:
             return result.reshape((len(result), np.prod(result.shape[1:])))
         return result
@@ -349,8 +375,8 @@ class TSne():
                 return self.rng.standard_normal(size=(n_samples, n_dimensions))
         else:
             return self.init.copy()
-
-    def fit(self, input, return_last=False) -> np.ndarray:
+    
+    def fit(self, input, labels=None, return_last=False) -> np.ndarray:
         """Fit the given data and perform the embedding
 
         Parameters
@@ -365,7 +391,9 @@ class TSne():
         t0 = time.time_ns()
 
         #====Input con dimensiones correctas=====================================================================================================================
-        X = self.__input_validation(input)
+        X = self.__input_validation(input, labels)
+
+
         self.init_embed = self.__rand_embed(X, self.n_dimensions)
         
         #====Ajuste del learning rate============================================================================================================================
@@ -384,7 +412,29 @@ class TSne():
             del dist_original #dist_original ya no hace falta
         
         #====Descenso de gradiente===============================================================================================================================
-        result = self.__gradient_descent(self.max_iter, p*self.early_exaggeration, return_last)
+        
+        # inicializar self.update, self.current_embed
+        self.update = np.zeros_like(self.init_embed)
+        self.best_embed = self.init_embed.copy()
+        self.current_embed = self.init_embed.copy()
+
+        # if self.n_dimensions==2:
+        #     line = self.plotting_ax.scatter(self.init_embed.T[0], self.init_embed.T[1], marker=MarkerStyle(self.plotting_markers), c=self.plotting_colors, s=self.plotting_size)
+        # else:
+        #     line = self.plotting_ax.scatter(self.init_embed.T[0], self.init_embed.T[1], self.init_embed.T[2], marker=MarkerStyle(self.plotting_markers), c=self.plotting_colors, s=self.plotting_size)
+        
+
+        
+        if self.n_dimensions==2:
+            line = self.plotting_ax.scatter(self.init_embed.T[0], self.init_embed.T[1], label=self.plotting_labels, c=self.plotting_colors, s=self.plotting_size)
+        else:
+            line = self.plotting_ax.scatter(self.init_embed.T[0], self.init_embed.T[1], self.init_embed.T[2], label=self.plotting_labels, c=self.plotting_colors, s=self.plotting_size)
+        if self.plotting_labels is not None:
+            leg = self.plotting_ax.legend(*line.legend_elements(), loc="lower right")
+            self.plotting_ax.add_artist(leg)
+        ani = animation.FuncAnimation(self.plotting_fig, self.__update_anim, self.max_iter, fargs=[p, self.plotting_ax], interval=100, repeat=False)
+        plt.show()
+        # result = self.__gradient_descent(self.max_iter, p*self.early_exaggeration, return_last)
         
         
         #====Salida por consola de verbosidad====================================================================================================================
@@ -413,7 +463,7 @@ class TSne():
             del t0,t,tiempos,tiempos_exacto,tS,tM,tH,strings
         
         self.embedding_finished = True
-        return result
+        return self.current_embed
     
     def __gradient_descent(self, t, p, return_last=False):
         #==== Parametros extra ===================================================================================================================================
@@ -425,22 +475,23 @@ class TSne():
         # previous_embed = np.zeros(self.init_embed.shape, dtype=embed.dtype) # y(t-2)
         update = np.zeros_like(embed)
         best_embed_ = np.zeros_like(embed).flatten()
-        
+        verbos = self.verbose
+        check_i = self.iters_check
         for i in range(0, t+1):
-            if self.verbose>1 and i%self.iters_check==0:
+            if verbos>1 and i%check_i==0:
                 print("---------------------------------")
                 print("Comenzando iteracion {}/{}".format(i,t))
             
 
-            #==== embed_dist ========================================================================================================================================
             embed_dist = similarities.pairwise_euclidean_distance(embed)
-            
-            #==== q =================================================================================================================================================
             q = similarities.joint_probabilities_student(embed_dist)
             
+            
             #==== cost ==============================================================================================================================================
-            if i%self.iters_check==0 or i==t:
+            if i%check_i==0 or i==t:
                 cost = kl_divergence(p, q)
+                if verbos>1:
+                    print("KL(t={}) = {:.6f}".format(i, cost))
                 if self.embed_cost is None or cost<self.embed_cost:
                     self.embed_i = i
                     self.embed_cost = cost
@@ -453,7 +504,7 @@ class TSne():
             elif i==t:
                 break
             #==== grad ==============================================================================================================================================
-            grad = gradient(p, q, embed, embed_dist, caso="safe")
+            grad = gradient(p, q, embed, embed_dist)
 
             #==== embed update ======================================================================================================================================
             # update = momentum*(embed-previous_embed) - grad*self.lr
@@ -470,6 +521,77 @@ class TSne():
             return embed
         else:
             return best_embed_.reshape(self.init_embed.shape, order='C')
+
+    def __update_embed(self, i, affinities):
+        if self.verbose>1 and i%self.iters_check==0:
+            print("---------------------------------")
+            print("Comenzando iteracion {}/{}".format(i,self.max_iter))
+
+        embed_dist = similarities.pairwise_euclidean_distance(self.current_embed)
+        q = similarities.joint_probabilities_student(embed_dist)
+
+
+        # Cambio de momento
+        if i<self.momentum_threshold:
+            p = self.early_exaggeration*affinities
+            momentum = self.momentum_start
+        else:
+            p = affinities
+            momentum = self.momentum_end
+        
+        # Coste
+        if i%self.iters_check==0:
+            cost = kl_divergence(p, q)
+            if self.verbose>1:
+                    print("KL(t={}) = {:.6f}".format(i, cost))
+            if self.embed_cost is None or cost<self.embed_cost:
+                self.embed_i = i
+                self.embed_cost = cost
+                self.best_embed = self.current_embed.flatten()
+
+        # Calculo de nuevo embed
+        grad = gradient(p, q, self.current_embed, embed_dist)
+        self.update = momentum*self.update - grad*self.lr
+        self.current_embed += self.update
+
+
+    def __update_anim(self, i, affinities, ax:Axes):
+        self.__update_embed(i, affinities)
+        
+        #===Plotting===============================================================================
+        ax.clear()
+        
+        x = self.current_embed.T[0]
+        y = self.current_embed.T[1]
+        if self.n_dimensions ==3:
+            z = self.current_embed.T[2]
+        
+        leg_aux1 = []
+        leg_aux2 = []
+
+        for m in np.unique(self.plotting_marker_result):
+            cond = self.plotting_marker_result==m
+            l = None if self.plotting_labels is None else self.plotting_labels[cond]
+            if self.n_dimensions==2:
+                line = ax.scatter(x[cond], y[cond], marker=m, c=self.plotting_colors[cond], label=l, s=self.plotting_size)
+            else:
+                line = ax.scatter(x[cond], y[cond], z[cond], marker=m, c=self.plotting_colors[cond], label=l, s=self.plotting_size)
+            
+            # PARA LA LEYENDA
+            aux1, aux2 = line.legend_elements()
+            leg_aux1.extend(aux1)
+            leg_aux2.extend(aux2)
+
+        # Labels
+        if self.plotting_labels is not None:
+            leg = ax.legend(leg_aux1, leg_aux2, loc="lower right")
+            ax.add_artist(leg)
+
+        # Title
+        plt.title("Current Iteration: {}/{} \n Best cost: i={}, cost={:.3f}".format(i+1, self.max_iter, self.embed_i, self.embed_cost))
+        if i>10:
+            print("todo bien")
+            exit(0)
 
     def get_embedding_cost_info(self):
         assert self.embedding_finished

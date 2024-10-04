@@ -5,6 +5,11 @@ import time
 
 #======================================================#
 #---Parametros para entrenar el modelo-----------------#
+
+
+
+
+
 n_dimensions = 2
 perplexity = 50
 lr = "auto"
@@ -19,31 +24,67 @@ fraccionDatosVecinos = 3
 start_momentum = 0.5
 end_momentum = 0.8
 momentum_threshold = 250
+
+
+argumentos_globales_modelos = {
+    "perplexity": 50
+}
+
+
+argumentos_modelo_mio = {
+    "n_dimensions": 2,
+    "perplexity": 50,
+    "perplexity_tolerance": 1e-10,
+    "early_exaggeration": 12,
+    "learning_rate": "auto",
+    "init": "random",
+    "max_iter": 5000,
+    "starting_momentum":  0.5,
+    "ending_momentum":  0.8,
+    "momentum_threshold": 250,
+    "seed": 4,
+    "verbose": 1,
+    "iters_check": 50,
+}
+
+argumentos_modelo_skl = {
+    "n_components": 2,
+    "learning_rate": "auto",
+    "init": "random",
+    "perplexity": 50,
+    "early_exaggeration": 12,
+    "verbose": 1,
+}
+
+argumentos_modelo_open = {
+    "n_iter": 5000,
+    "n_components": 2,
+    "perplexity": 50,
+    "early_exaggeration": 12,
+    "early_exaggeration_iter": 250,
+    "initial_momentum": 0.5,
+    "final_momentum": 0.8,
+    "learning_rate": "auto",
+    "verbose": 1,
+
+}
+
+
 #---Cosas que mostrar por consola----------------------#
 nivel_verbose=0
 #======================================================#
 
 #===Mio======================================================================#
 def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, trust=False):
+    if print_tiempo:
+        argumentos_modelo_mio["verbose"] = 0
     verbosidad = 0 if print_tiempo else nivel_verbose
     from mytsnelib import functions
     perplexity_tolerance = 1e-10
     
     t0 = time.time_ns()
-    model = functions.TSne(n_dimensions=n_dimensions,
-                        perplexity=perplexity,
-                        perplexity_tolerance=perplexity_tolerance,
-                        early_exaggeration=early_exaggeration,
-                        learning_rate=lr,
-                        init=init,
-                        max_iter=max_iter,
-                        starting_momentum = start_momentum,
-                        ending_momentum = end_momentum,
-                        momentum_threshold=momentum_threshold,
-                        seed=seed,
-                        verbose=verbosidad,
-                        iters_check=iters_check)
-    data_embedded = model.fit(data)
+    model = functions.TSne(**argumentos_modelo_mio, **argumentos_globales_modelos)
+    data_embedded = model.fit(data, labels)
     t_diff = (time.time_ns()-t0)*1e-9
     
     if print_tiempo:
@@ -65,18 +106,38 @@ def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=Fals
     import sklearn.manifold as mnf
     verbosidad = 0 if print_tiempo else nivel_verbose
     t0 = time.time_ns()
-    model = mnf.TSNE(n_components=n_dimensions,
-                     learning_rate=lr,
-                     init=init,
-                     perplexity=perplexity,
-                     early_exaggeration=early_exaggeration,
-                     verbose=verbosidad)
+    model = mnf.TSNE(verbose=verbosidad, **argumentos_modelo_skl)
+
     data_embedded = model.fit_transform(data)
     t_diff = (time.time_ns()-t0)*1e-9
     if print_tiempo:
         ut.print_tiempo(t_diff, metodo="Scikit-learn")
     if trust:
         ut.print_trust(data, data_embedded, "Scikit-Learn")
+    if display:
+        ut.display_embed(data_embedded, labels, title=title)
+
+#===openTSNE=================================================================#
+def probar_open(data, labels, *, verbose=1, display=False, title=None, print_tiempo=False, trust=False):
+    import openTSNE
+    verbosidad = 0 if print_tiempo else nivel_verbose
+    t0 = time.time_ns()
+
+    model = openTSNE.TSNE(n_iter=max_iter,
+                          n_components=n_dimensions,
+                          perplexity=perplexity,
+                          early_exaggeration=early_exaggeration,
+                          early_exaggeration_iter=momentum_threshold,
+                          initial_momentum=start_momentum,
+                          final_momentum=end_momentum,
+                          learning_rate=lr,
+                          verbose=verbosidad)
+    data_embedded = model.fit(data)
+    t_diff = (time.time_ns()-t0)*1e-9
+    if print_tiempo:
+        ut.print_tiempo(t_diff, metodo="openTSNE")
+    if trust:
+        ut.print_trust(data, data_embedded, metodo="openTSNE")
     if display:
         ut.display_embed(data_embedded, labels, title=title)
     
@@ -169,28 +230,6 @@ def probar_autoencoder(train_data, test_data, test_labels, *, display=False, tit
 def probar_bht(data, labels, *, verbose=1, display=False, title=None):
     import bhtsne
     embedding_bht = bhtsne.tsne(data, initial_dims=data.shape[1])
-    
-
-def probar_open(data, labels, *, verbose=1, display=False, title=None, print_tiempo=False, trust=False):
-    import openTSNE
-    t0 = time.time_ns()
-    model = openTSNE.TSNE(n_iter=max_iter,
-                          n_components=n_dimensions,
-                          perplexity=perplexity,
-                          early_exaggeration=early_exaggeration,
-                          early_exaggeration_iter=momentum_threshold,
-                          initial_momentum=start_momentum,
-                          final_momentum=end_momentum,
-                          learning_rate=lr)
-    data_embedded = model.fit(data)
-    t_diff = (time.time_ns()-t0)*1e-9
-    if print_tiempo:
-        ut.print_tiempo(t_diff, metodo="openTSNE")
-    if trust:
-        ut.print_trust(data, data_embedded, metodo="openTSNE")
-    if display:
-        ut.display_embed(data_embedded, labels, title=title)
-
 #=======================================================================================================#
 #=======================================================================================================#
 #=======================================================================================================#

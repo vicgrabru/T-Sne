@@ -1,5 +1,6 @@
 import csv
 from collections.abc import Sequence
+from matplotlib.collections import PathCollection
 import numpy as np
 import matplotlib.pyplot as plt
 import gc
@@ -81,11 +82,14 @@ def print_tiempo(t, metodo="Mio"):
     print("============================================")
     print(metodo + " finished")
     if t_exact>60:
-        if t_exact<3600: # <1h
-            print("Execution time (min:sec): {}:{}".format(tM,tS))
+        if t_exact>=3600: # <1h
+            texto = "Execution time (h:min:sec): {}:{}:{}".format(tH,tM,tS)
         else:
-            print("Execution time (h:min:sec): {}:{}:{}".format(tH,tM,tS))
-    print("Execution time (s): {}".format(t))
+            texto = "Execution time (min:sec): {}:{}".format(tM,tS)
+        texto += " ({} s)".format(t)
+    else:
+        texto = "Execution time (s): {}".format(t)
+    print(texto)
     print("============================================")
 
 def print_trust(data, embed, metodo):
@@ -94,3 +98,10 @@ def print_trust(data, embed, metodo):
     print("============================================")
     print("Trust con {}: {:.3f} %".format(metodo, trust*100))
     print("============================================")
+
+def merge_pathcollections(cols:list[PathCollection]):
+    
+    for p in cols:
+        p.get_paths
+    PathCollection
+    pass
