@@ -60,7 +60,7 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
     if trust:
         ut.print_trust(data, data_embedded, "mio")
     if display:
-        best_iter = model.embed_i
+        best_iter = model.be
         best_iter, best_cost = model.get_embedding_cost_info()
         title = "Mostrando embedding con mejor coste, en la iteracion {}/{}".format(best_iter, argumentos_globales_modelos["n_iter"])
         embed = np.copy(data_embedded)
