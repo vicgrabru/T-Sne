@@ -1,5 +1,5 @@
 import numpy as np
-import mytsnelib.utils as ut
+import animatsne.utils as ut
 import time
 
 
@@ -79,7 +79,7 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
     if print_tiempo:
         argumentos_modelo_mio["verbose"] = 0
     verbosidad = 0 if print_tiempo else nivel_verbose
-    from mytsnelib import functions
+    from animatsne import functions
     perplexity_tolerance = 1e-10
     
     t0 = time.time_ns()

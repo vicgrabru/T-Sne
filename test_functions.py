@@ -1,5 +1,5 @@
 import numpy as np
-import mytsnelib.utils as ut
+import animatsne.utils as ut
 import tests.comparacion as comp
 import gc
 def test_haversine():

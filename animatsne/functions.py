@@ -10,7 +10,7 @@ import matplotlib.patches
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from collections.abc import Sequence
-from mytsnelib import similarities
+from animatsne import similarities
 
 def _is_array_like(input) -> bool:
     return isinstance(input, (np.ndarray, Sequence)) and not isinstance(input, str)

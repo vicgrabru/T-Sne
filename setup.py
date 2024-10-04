@@ -1,10 +1,10 @@
 from setuptools import find_packages, setup
 
 setup(
-    name='mytsnelib',
-    packages=find_packages(include=['mytsnelib','similarities','utils']),
+    name='animatsne',
+    packages=find_packages(include=['animatsne','similarities','utils']),
     version='1.0.0',
-    description='A library that implements the T-Sne algorithm',
+    description='A library that displays the process of the T-Sne algorithm',
     author='Victor Gravan Bru',
     license='MIT',
     install_requires=[],
