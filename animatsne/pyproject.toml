@@ -29,6 +29,7 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Operating System :: OS Independent"
 ]
+
 [project.optional-dependencies]
 pca = ["sklearn"]
 
@@ -37,4 +38,5 @@ Homepage = "https://github.com/vicgrabru/animatsne"
 Issues = "https://github.com/vicgrabru/animatsne/issues"
 
 [tool.setuptools]
+packages = ["animatsne", "animatsne.animatsne", "animatsne.similarities"]
 package-dir = {"" = "animatsne"}
