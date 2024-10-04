@@ -1,7 +1,0 @@
-Metadata-Version: 2.1
-Name: animatsne
-Version: 1.0.0
-Summary: A library that displays the process of the T-Sne algorithm
-Author: Victor Gravan Bru
-License: MIT
-License-File: LICENSE
