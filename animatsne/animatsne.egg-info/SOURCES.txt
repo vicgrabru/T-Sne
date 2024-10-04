@@ -1,0 +1,11 @@
+LICENSE
+pyproject.toml
+readme-pypi.md
+animatsne/__init__.py
+animatsne/anim.py
+animatsne/similarities.py
+animatsne.egg-info/PKG-INFO
+animatsne.egg-info/SOURCES.txt
+animatsne.egg-info/dependency_links.txt
+animatsne.egg-info/requires.txt
+animatsne.egg-info/top_level.txt

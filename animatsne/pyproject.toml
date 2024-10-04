@@ -39,4 +39,4 @@ Issues = "https://github.com/vicgrabru/animatsne/issues"
 
 [tool.setuptools]
 packages = ["animatsne"]
-package-dir = {"" = "animatsne"}
+# package-dir = {"" = "animatsne"}

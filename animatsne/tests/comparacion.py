@@ -9,29 +9,35 @@ argumentos_globales_modelos = {
     "early_exaggeration": 12,
     "learning_rate": "auto",
     "verbose": 1,
+    "random_state": 4,
 }
+
+
 argumentos_modelo_mio = {
     "perplexity_tolerance": 1e-10,
     "init": "random",
     "starting_momentum":  0.5,
     "ending_momentum":  0.8,
     "momentum_threshold": 250,
-    "seed": 4,
     "iters_check": 50,
-}
+}; argumentos_modelo_mio.update(argumentos_globales_modelos)
+
 argumentos_modelo_skl = {
     "init": "random",
-}
+}; argumentos_modelo_skl.update(argumentos_globales_modelos)
+
 argumentos_modelo_open = {
     "early_exaggeration_iter": 250,
     "initial_momentum": 0.5,
     "final_momentum": 0.8,
-}
+}; argumentos_modelo_open.update(argumentos_globales_modelos)
+
 argumentos_pca = {
     "n_components": 2,
     "svd_solver": "randomized",
     "random_state": 4,
 }
+
 argumentos_autoencoders = {
 "epochs": 10,
 "shuffle": True,
@@ -45,7 +51,7 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
     import animatsne.anim as anim
     
     t0 = time.time_ns()
-    model = anim.TSne(**argumentos_modelo_mio, **argumentos_globales_modelos)
+    model = anim.TSne(**argumentos_modelo_mio)
     data_embedded = model.fit(data, labels)
     t_diff = (time.time_ns()-t0)*1e-9
     
@@ -54,6 +60,7 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
     if trust:
         ut.print_trust(data, data_embedded, "mio")
     if display:
+        best_iter = model.embed_i
         best_iter, best_cost = model.get_embedding_cost_info()
         title = "Mostrando embedding con mejor coste, en la iteracion {}/{}".format(best_iter, argumentos_globales_modelos["n_iter"])
         embed = np.copy(data_embedded)
@@ -69,7 +76,7 @@ def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=Fals
         argumentos_modelo_mio["verbose"] = 0
     import sklearn.manifold as mnf
     t0 = time.time_ns()
-    model = mnf.TSNE(**argumentos_modelo_skl, **argumentos_globales_modelos)
+    model = mnf.TSNE(**argumentos_modelo_skl)
 
     data_embedded = model.fit_transform(data)
     t_diff = (time.time_ns()-t0)*1e-9
@@ -87,7 +94,7 @@ def probar_open(data, labels, *, verbose=1, display=False, title=None, print_tie
     import openTSNE
     t0 = time.time_ns()
 
-    model = openTSNE.TSNE(**argumentos_globales_modelos, **argumentos_modelo_open)
+    model = openTSNE.TSNE(**argumentos_modelo_open)
     data_embedded = model.fit(data)
     t_diff = (time.time_ns()-t0)*1e-9
     if print_tiempo:
@@ -96,7 +103,6 @@ def probar_open(data, labels, *, verbose=1, display=False, title=None, print_tie
         ut.print_trust(data, data_embedded, metodo="openTSNE")
     if display:
         ut.display_embed(data_embedded, labels, title=title)
-    
 
 
 #===PCA======================================================================#

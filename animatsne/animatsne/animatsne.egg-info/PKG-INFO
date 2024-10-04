@@ -1,0 +1,28 @@
+Metadata-Version: 2.1
+Name: animatsne
+Version: 1.0.0
+Summary: A library that displays the process of the T-Sne algorithm
+Author-email: Victor Gravan Bru <vgravanbru@gmail.com>
+Maintainer-email: Victor Gravan Bru <vgravanbru@gmail.com>
+Project-URL: Homepage, https://github.com/vicgrabru/animatsne
+Project-URL: Issues, https://github.com/vicgrabru/animatsne/issues
+Keywords: tsne,algorithm visualization
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Education
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: matplotlib
+Requires-Dist: numpy
+Requires-Dist: scipy
+Provides-Extra: pca
+Requires-Dist: sklearn; extra == "pca"
+
+# README
+
+This package animates the T-Sne algorithm as it advances

@@ -62,7 +62,7 @@ class TSne():
         TODO: explicarlo
     momentum_params : array-like of shape (3,), default=[250.,0.5,0.8]
         TODO: explicarlo
-    seed : int, default=None
+    random_state : int, default=None
         TODO: explicarlo
     verbose : int, default=0
         Verbosity level (all levels include all info from previous levels):
@@ -80,10 +80,10 @@ class TSne():
     """
     def __init__(self, *, n_components=2, perplexity=30., perplexity_tolerance=1e-2,
                  metric='euclidean', init:str|Sequence|np.ndarray="random", early_exaggeration=12.,
-                 learning_rate:str|float="auto", n_iter=1000, starting_momentum=0.5, ending_momentum=0.8, momentum_threshold=250, seed:int=None, verbose=0, iters_check=50):
+                 learning_rate:str|float="auto", n_iter=1000, starting_momentum=0.5, ending_momentum=0.8, momentum_threshold=250, random_state:int=None, verbose=0, iters_check=50):
         
         #===validacion de parametros=================================================================================
-        self.__init_validation(n_components, perplexity, perplexity_tolerance, metric, init, early_exaggeration, learning_rate, n_iter, starting_momentum, ending_momentum, momentum_threshold, seed, verbose, iters_check)
+        self.__init_validation(n_components, perplexity, perplexity_tolerance, metric, init, early_exaggeration, learning_rate, n_iter, starting_momentum, ending_momentum, momentum_threshold, random_state, verbose, iters_check)
 
         #===inicializacion de la clase===============================================================================
         self.n_components = n_components if isinstance(n_components, int) else int(np.floor(n_components))
@@ -103,34 +103,29 @@ class TSne():
         self.early_exaggeration = 12. if early_exaggeration is None else early_exaggeration
         self.verbose = verbose
         self.iters_check = iters_check
-        self.seed = int(time.time()) if seed is None else seed
-        self.rng = np.random.default_rng(self.seed)
+        self.random_state = int(time.time()) if random_state is None else random_state
+        self.rng = np.random.default_rng(self.random_state)
         self.n_neighbors = int(perplexity)
 
         
-        #===plotting de la representacion
-        
-        # self.plotting_fig, self.plotting_ax = plt.subplots(layout='constrained') if self.n_components==2 else plt.subplots(layout='constrained',subplot_kw=dict({"projection": "3d"}))
+        #=== Plotting Params
         self.plotting_fig, self.plotting_ax = plt.subplots() if self.n_components==2 else plt.subplots(subplot_kw=dict({"projection": "3d"}))
         self.plotting_labels = None
         self.plotting_colors = None
         self.plotting_markers = None
-        self.plotting_marker_options = ['o','*','v','^','<','>']
-        self.plotting_marker_result = None
         self.plotting_size = 5
         
         
-        #===parametros auxiliares====================================================================================
-        self.embedding_finished = False
-        self.embed_i = None
-        self.embed_cost = None
+        #=== Auxiliary Params ====================================================================================
+        self.best_i = None
+        self.best_cost = None
         self.init_embed = None
         self.current_embed = None
-        self.best_embed = None
         self.update = None
+        self.embedding_record = []
 
     def __init_validation(self,n_components,perplexity,perplexity_tolerance,metric,init,
-                           early_exaggeration,learning_rate,n_iter, starting_momentum, ending_momentum, momentum_threshold, seed, verbose, iters_check):
+                           early_exaggeration,learning_rate,n_iter, starting_momentum, ending_momentum, momentum_threshold, random_state, verbose, iters_check):
         accepted_inits = ["random", "pca"]
         accepted_metrics = ["euclidean", "precomputed"]
         invalid_numbers = [np.nan, np.inf]
@@ -250,12 +245,12 @@ class TSne():
             elif momentum_threshold not in range(n_iter):
                 raise ValueError("momentum_threshold must be in range(0, n_iter)")
         
-        # Seed
-        if seed is not None: # seed: int
-            if not isinstance(seed, int):
-                raise ValueError("seed must be an integer")
-            elif seed<0:
-                raise ValueError("seed must be positive")
+        # random_state
+        if random_state is not None: # random_state: int
+            if not isinstance(random_state, int):
+                raise ValueError("random_state must be an integer")
+            elif random_state<0:
+                raise ValueError("random_state must be positive")
         
         # Verbose
         if verbose is not None: # verbose: int
@@ -295,10 +290,7 @@ class TSne():
             if not _is_array_like(input):
                 raise ValueError("The given input is not array-like")
             else:
-                marker_paths = []
-                for s in self.plotting_marker_options:
-                    m = MarkerStyle(s)
-                    marker_paths.append(m.get_path().transformed(m.get_transform()))
+                marker_options = ['o','*','v','^','<','>']
 
                 plotting_labels = np.array(labels, dtype=np.str_)
                 if plotting_labels.ndim!=1:
@@ -306,29 +298,20 @@ class TSne():
                 else:
                     if np.all(np.char.isnumeric(plotting_labels)): #strings de numeros
                         # np.min_scalar_type
-                        aux = np.array(labels, dtype=int)
-                        self.plotting_labels = aux
-                        self.plotting_colors = aux
-                        # self.plotting_markers = np.empty_like(plotting_labels)
-                        self.plotting_marker_result = np.empty_like(plotting_labels)
-                        self.plotting_markers = np.empty_like(plotting_labels, dtype=Path)
-                        unicos = np.unique(aux)
+                        self.plotting_labels = np.array(labels, dtype=int)
+                        self.plotting_colors = np.array(labels, dtype=int)
+                        self.plotting_markers = np.empty_like(plotting_labels)
+                        unicos = np.unique(self.plotting_labels)
                         if unicos.shape[0]>5:
                             for i in range(unicos.shape[0]):
-                                indices = np.argwhere(aux==unicos[i])
-                                ind_mark = int(i%len(marker_paths))
-                                self.plotting_markers[indices] = marker_paths[ind_mark]
-                                self.plotting_marker_result[indices] = self.plotting_marker_options[ind_mark]
+                                indices = np.argwhere(self.plotting_labels==unicos[i])
+                                self.plotting_markers[indices] = marker_options[int(i%len(marker_options))]
                         else:
-                            aux2 = MarkerStyle('o')
-                            self.plotting_markers.fill(aux2.get_path().transformed(aux2.get_transform()))
-                            self.plotting_marker_result.fill('o')
+                            self.plotting_markers.fill('o')
                         
                     else: #strings genericos
                         self.plotting_labels = plotting_labels
-                        # self.plotting_markers = np.empty_like(labels, dtype=MarkerStyle)
-                        self.plotting_marker_result = np.empty_like(plotting_labels)
-                        self.plotting_markers = np.empty_like(labels, dtype=Path)
+                        self.plotting_markers = np.empty_like(plotting_labels)
                         self.plotting_colors = np.empty_like(labels, dtype=int)
                         
                         
@@ -340,18 +323,16 @@ class TSne():
                                 indices = np.argwhere(plotting_labels==elementos[i])
                                 self.plotting_colors[indices] = i
                             aux = MarkerStyle('o')
-                            self.plotting_markers.fill(aux.get_path().transformed(aux.get_transform()))
-                            self.plotting_marker_result.fill('o')
+                            self.plotting_markers.fill('o')
                         else:
                             n = max(np.floor(np.sqrt(n_unique)), 5)
                             colores = np.array(range(n))
                             for i in range(n_unique):
                                 indices = np.argwhere(plotting_labels==elementos[i])
                                 self.plotting_colors[indices] = colores[np.divmod(i, n)[0]]
-                                self.plotting_markers[indices] = marker_paths[int(i%len(marker_paths))]
-                                self.plotting_marker_result[indices] = self.plotting_marker_options[int(i%len(marker_paths))]
+                                self.plotting_markers[indices] = marker_options[int(i%len(marker_options))]
         else:
-            self.plotting_marker_result = np.full(shape=len(result), fill_value='o')
+            self.plotting_markers = np.full(shape=len(result), fill_value='o')
             self.plotting_colors = np.full(shape=len(result), fill_value=1)
         if result.ndim>2:
             return result.reshape((len(result), np.prod(result.shape[1:])))
@@ -364,7 +345,7 @@ class TSne():
         elif isinstance(self.init, str):
             if self.init.lower()=="pca":
                 from sklearn.decomposition import PCA
-                pca = PCA(n_components=n_dimensions, svd_solver="randomized", random_state=self.seed)
+                pca = PCA(n_components=n_dimensions, svd_solver="randomized", random_state=self.random_state)
                 pca.set_output(transform="default")
                 data_embedded = pca.fit_transform(input).astype(np.float32, copy=False)
                 return data_embedded / np.std(data_embedded[:, 0]) * 1e-4
@@ -373,7 +354,7 @@ class TSne():
         else:
             return self.init.copy()
     
-    def fit(self, input, labels=None, return_last=False) -> np.ndarray:
+    def fit(self, input, labels=None, gif_filename=None, gif_kwargs=None, save_record=False) -> np.ndarray:
         """Fit the given data and perform the embedding
 
         Parameters
@@ -389,7 +370,6 @@ class TSne():
 
         #====Input con dimensiones correctas=====================================================================================================================
         X = self.__input_validation(input, labels)
-
 
         self.init_embed = self.__rand_embed(X, self.n_components)
         
@@ -412,15 +392,10 @@ class TSne():
         
         # inicializar self.update, self.current_embed
         self.update = np.zeros_like(self.init_embed)
-        self.best_embed = self.init_embed.copy()
         self.current_embed = self.init_embed.copy()
 
-        # if self.n_components==2:
-        #     line = self.plotting_ax.scatter(self.init_embed.T[0], self.init_embed.T[1], marker=MarkerStyle(self.plotting_markers), c=self.plotting_colors, s=self.plotting_size)
-        # else:
-        #     line = self.plotting_ax.scatter(self.init_embed.T[0], self.init_embed.T[1], self.init_embed.T[2], marker=MarkerStyle(self.plotting_markers), c=self.plotting_colors, s=self.plotting_size)
-        
-
+        if save_record:
+            self.embedding_record.append(self.current_embed.copy())
         
         if self.n_components==2:
             line = self.plotting_ax.scatter(self.init_embed.T[0], self.init_embed.T[1], label=self.plotting_labels, c=self.plotting_colors, s=self.plotting_size)
@@ -429,8 +404,13 @@ class TSne():
         if self.plotting_labels is not None:
             leg = self.plotting_ax.legend(*line.legend_elements(), loc="lower right")
             self.plotting_ax.add_artist(leg)
-        ani = animation.FuncAnimation(self.plotting_fig, self.__update_anim, self.n_iter, fargs=[p, self.plotting_ax], interval=100, repeat=False)
-        plt.show()
+        plt.title("Initial embedding")
+        ani = animation.FuncAnimation(self.plotting_fig, self.__update_anim, self.n_iter, fargs=[p, self.plotting_ax, save_record], interval=100, repeat=False)
+
+        if gif_filename is None:
+            plt.show()
+        else:
+            ani.save(gif_filename, **gif_kwargs)
         # result = self.__gradient_descent(self.n_iter, p*self.early_exaggeration, return_last)
         
         
@@ -459,7 +439,6 @@ class TSne():
             print("====================================")
             del t0,t,tiempos,tiempos_exacto,tS,tM,tH,strings
         
-        self.embedding_finished = True
         return self.current_embed
     
     def __gradient_descent(self, t, p, return_last=False):
@@ -489,9 +468,9 @@ class TSne():
                 cost = kl_divergence(p, q)
                 if verbos>1:
                     print("KL(t={}) = {:.6f}".format(i, cost))
-                if self.embed_cost is None or cost<self.embed_cost:
-                    self.embed_i = i
-                    self.embed_cost = cost
+                if self.best_cost is None or cost<self.best_cost:
+                    self.best_i = i
+                    self.best_cost = cost
                     best_embed_ = embed.flatten()
 
             #==== momentum change ===================================================================================================================================
@@ -513,8 +492,8 @@ class TSne():
             # gc.collect() #liberar memoria despues de cada iteracion
 
         if return_last:
-            self.embed_i = t-1
-            self.embed_cost = cost
+            self.best_i = t-1
+            self.best_cost = cost
             return embed
         else:
             return best_embed_.reshape(self.init_embed.shape, order='C')
@@ -541,10 +520,9 @@ class TSne():
             cost = kl_divergence(p, q)
             if self.verbose>1:
                     print("KL(t={}) = {:.6f}".format(i, cost))
-            if self.embed_cost is None or cost<self.embed_cost:
-                self.embed_i = i
-                self.embed_cost = cost
-                self.best_embed = self.current_embed.flatten()
+            if self.best_cost is None or cost<self.best_cost:
+                self.best_iter = i
+                self.best_cost = cost
 
         # Calculo de nuevo embed
         grad = gradient(p, q, self.current_embed, embed_dist)
@@ -552,8 +530,10 @@ class TSne():
         self.current_embed += self.update
 
 
-    def __update_anim(self, i, affinities, ax:Axes):
+    def __update_anim(self, i, affinities, ax:Axes, save_record):
         self.__update_embed(i, affinities)
+        if save_record:
+            self.embedding_record.append(self.current_embed.copy())
         
         #===Plotting===============================================================================
         ax.clear()
@@ -566,8 +546,8 @@ class TSne():
         leg_aux1 = []
         leg_aux2 = []
 
-        for m in np.unique(self.plotting_marker_result):
-            cond = self.plotting_marker_result==m
+        for m in np.unique(self.plotting_markers):
+            cond = self.plotting_markers==m
             l = None if self.plotting_labels is None else self.plotting_labels[cond]
             if self.n_components==2:
                 line = ax.scatter(x[cond], y[cond], marker=m, c=self.plotting_colors[cond], label=l, s=self.plotting_size)
@@ -585,14 +565,7 @@ class TSne():
             ax.add_artist(leg)
 
         # Title
-        plt.title("Current Iteration: {}/{} \n Best cost: i={}, cost={:.3f}".format(i+1, self.n_iter, self.embed_i, self.embed_cost))
-        if i>10:
-            print("todo bien")
-            exit(0)
-
-    def get_embedding_cost_info(self):
-        assert self.embedding_finished
-        return self.embed_i, self.embed_cost
+        plt.title("Current Iteration: {}/{} \n Best cost: i={}, cost={:.3f}".format(i+1, self.n_iter, self.best_i, self.best_cost))
 
     
 
