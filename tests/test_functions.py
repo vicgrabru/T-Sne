@@ -1,6 +1,9 @@
 import numpy as np
+import comparacion as comp
 import animatsne.utils as ut
-import tests.comparacion as comp
+from .. import utils as ut
+
+# from ..animatsne import utils as ut
 import gc
 def test_haversine():
     assert True

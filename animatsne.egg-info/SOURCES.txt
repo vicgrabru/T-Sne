@@ -2,7 +2,7 @@ LICENSE
 README.md
 setup.py
 animatsne/__init__.py
-animatsne/functions.py
+animatsne/animatsne.py
 animatsne/similarities.py
 animatsne/utils.py
 animatsne.egg-info/PKG-INFO
@@ -11,3 +11,4 @@ animatsne.egg-info/dependency_links.txt
 animatsne.egg-info/top_level.txt
 tests/__init__.py
 tests/test_functions.py
+tests/comparacion.py

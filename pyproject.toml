@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "animatsne"
+version = "1.0.0"
+dependencies = [
+  "matplotlib",
+  "numpy",
+  "scipy",
+]
+requires-python = ">=3.10"
+authors = [
+  { name="Victor Gravan Bru", email="vgravanbru@gmail.com"}
+]
+maintainers = [
+  { name="Victor Gravan Bru", email="vgravanbru@gmail.com"}
+]
+description = "A library that displays the process of the T-Sne algorithm"
+readme = "README.md"
+keywords = ["tsne", "algorithm visualization"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Education",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.10",
+  "Operating System :: OS Independent"
+]
+[project.optional-dependencies]
+pca = ["sklearn"]
+
+[project.urls]
+Homepage = "https://github.com/vicgrabru/animatsne"
+Issues = "https://github.com/vicgrabru/animatsne/issues"
+
+[tool.setuptools]
+packages = ["animatsne", "animatsne.animatsne,"animatsne.similarities"]
+
+[tool.setuptools.packages.find]
+exclude = ["tests*"]
