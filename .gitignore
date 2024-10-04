@@ -1,6 +1,6 @@
 .eggs
 .pytest_cache
-*/__pycache__
+*__pycache__
 .vscode
 data_full
 code_testing_results
