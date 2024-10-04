@@ -61,7 +61,7 @@ class TSne():
         TODO: explicarlo
     learning_rate : str or float, default='auto'
         TODO: explicarlo
-    max_iter : int, default=1000
+    n_iter : int, default=1000
         TODO: explicarlo
     momentum_params : array-like of shape (3,), default=[250.,0.5,0.8]
         TODO: explicarlo
@@ -81,15 +81,15 @@ class TSne():
 
     
     """
-    def __init__(self, *, n_dimensions=2, perplexity=30., perplexity_tolerance=1e-2,
+    def __init__(self, *, n_components=2, perplexity=30., perplexity_tolerance=1e-2,
                  metric='euclidean', init:str|Sequence|np.ndarray="random", early_exaggeration=12.,
-                 learning_rate:str|float="auto", max_iter=1000, starting_momentum=0.5, ending_momentum=0.8, momentum_threshold=250, seed:int=None, verbose=0, iters_check=50):
+                 learning_rate:str|float="auto", n_iter=1000, starting_momentum=0.5, ending_momentum=0.8, momentum_threshold=250, seed:int=None, verbose=0, iters_check=50):
         
         #===validacion de parametros=================================================================================
-        self.__init_validation(n_dimensions, perplexity, perplexity_tolerance, metric, init, early_exaggeration, learning_rate, max_iter, starting_momentum, ending_momentum, momentum_threshold, seed, verbose, iters_check)
+        self.__init_validation(n_components, perplexity, perplexity_tolerance, metric, init, early_exaggeration, learning_rate, n_iter, starting_momentum, ending_momentum, momentum_threshold, seed, verbose, iters_check)
 
         #===inicializacion de la clase===============================================================================
-        self.n_dimensions = n_dimensions if isinstance(n_dimensions, int) else int(np.floor(n_dimensions))
+        self.n_components = n_components if isinstance(n_components, int) else int(np.floor(n_components))
         self.perplexity = perplexity
         self.perplexity_tolerance = perplexity_tolerance
         self.metric = metric.lower()
@@ -99,7 +99,7 @@ class TSne():
             self.init = init
         self.learning_rate = learning_rate
         self.lr = None
-        self.max_iter = max_iter
+        self.n_iter = n_iter
         self.momentum_start = starting_momentum
         self.momentum_end = ending_momentum
         self.momentum_threshold = momentum_threshold
@@ -113,8 +113,8 @@ class TSne():
         
         #===plotting de la representacion
         
-        # self.plotting_fig, self.plotting_ax = plt.subplots(layout='constrained') if self.n_dimensions==2 else plt.subplots(layout='constrained',subplot_kw=dict({"projection": "3d"}))
-        self.plotting_fig, self.plotting_ax = plt.subplots() if self.n_dimensions==2 else plt.subplots(subplot_kw=dict({"projection": "3d"}))
+        # self.plotting_fig, self.plotting_ax = plt.subplots(layout='constrained') if self.n_components==2 else plt.subplots(layout='constrained',subplot_kw=dict({"projection": "3d"}))
+        self.plotting_fig, self.plotting_ax = plt.subplots() if self.n_components==2 else plt.subplots(subplot_kw=dict({"projection": "3d"}))
         self.plotting_labels = None
         self.plotting_colors = None
         self.plotting_markers = None
@@ -132,21 +132,21 @@ class TSne():
         self.best_embed = None
         self.update = None
 
-    def __init_validation(self,n_dimensions,perplexity,perplexity_tolerance,metric,init,
-                           early_exaggeration,learning_rate,max_iter, starting_momentum, ending_momentum, momentum_threshold, seed, verbose, iters_check):
+    def __init_validation(self,n_components,perplexity,perplexity_tolerance,metric,init,
+                           early_exaggeration,learning_rate,n_iter, starting_momentum, ending_momentum, momentum_threshold, seed, verbose, iters_check):
         accepted_inits = ["random", "pca"]
         accepted_metrics = ["euclidean", "precomputed"]
         invalid_numbers = [np.nan, np.inf]
 
         # N dimensions
-        if n_dimensions is not None: # n_dimensions: int
-            if not isinstance(n_dimensions, (int, float)):
+        if n_components is not None: # n_dimensions: int
+            if not isinstance(n_components, (int, float)):
                 raise ValueError("n_dimensions must be of int type")
-            elif n_dimensions in invalid_numbers:
+            elif n_components in invalid_numbers:
                 raise ValueError("n_dimensions must be finite and not NaN")
-            elif n_dimensions<1:
+            elif n_components<1:
                 raise ValueError("n_dimensions must be a positive number")
-            elif n_dimensions>3:
+            elif n_components>3:
                 print("**Warning: If you use more than 3 dimensions, you will not be able to display the embedding**")
         
         # Perplexity
@@ -191,7 +191,7 @@ class TSne():
                     raise ValueError("Data type of the initial embedding must be a number")
                 elif np.inf in init or np.nan in init:
                     raise ValueError("The initial embedding must not contain NaN or an infinite number")
-                elif n_dimensions is not None and evaluation.shape[1]!=n_dimensions:
+                elif n_components is not None and evaluation.shape[1]!=n_components:
                     raise ValueError("The initial embedding must have the number of dimensions provided")
 
             else:
@@ -220,13 +220,13 @@ class TSne():
                 raise ValueError("learning_rate must a number or 'auto'")
         
         # Max iter
-        if max_iter is not None: # max_iter: int
-            if not isinstance(max_iter, int):
-                raise ValueError("max_iter must be an integer")
-            elif max_iter in invalid_numbers:
-                raise ValueError("max_iter must be finite and not NaN")
-            elif max_iter <1:
-                raise ValueError("max_iter must be a positive number")
+        if n_iter is not None: # n_iter: int
+            if not isinstance(n_iter, int):
+                raise ValueError("n_iter must be an integer")
+            elif n_iter in invalid_numbers:
+                raise ValueError("n_iter must be finite and not NaN")
+            elif n_iter <1:
+                raise ValueError("n_iter must be a positive number")
         
         # Starting Momentum
         if starting_momentum is not None: # starting_momentum: float
@@ -250,8 +250,8 @@ class TSne():
         if momentum_threshold is not None: # momentum_threshold: int
             if not isinstance(momentum_threshold, int):
                 raise ValueError("momentum_threshold must be an integer")
-            elif momentum_threshold not in range(max_iter):
-                raise ValueError("momentum_threshold must be in range(0, max_iter)")
+            elif momentum_threshold not in range(n_iter):
+                raise ValueError("momentum_threshold must be in range(0, n_iter)")
         
         # Seed
         if seed is not None: # seed: int
@@ -273,8 +273,8 @@ class TSne():
                 raise ValueError("iters_check must be an integer")
             elif iters_check<1:
                 raise ValueError("iters_check must be at least 1")
-            elif iters_check>max_iter:
-                raise ValueError("iters_check cannot be greater than max_iter")
+            elif iters_check>n_iter:
+                raise ValueError("iters_check cannot be greater than n_iter")
     def __input_validation(self, input, labels=None):
         if _is_array_like(input):
             result = np.array(input)
@@ -394,7 +394,7 @@ class TSne():
         X = self.__input_validation(input, labels)
 
 
-        self.init_embed = self.__rand_embed(X, self.n_dimensions)
+        self.init_embed = self.__rand_embed(X, self.n_components)
         
         #====Ajuste del learning rate============================================================================================================================
         if self.learning_rate == "auto":
@@ -418,29 +418,29 @@ class TSne():
         self.best_embed = self.init_embed.copy()
         self.current_embed = self.init_embed.copy()
 
-        # if self.n_dimensions==2:
+        # if self.n_components==2:
         #     line = self.plotting_ax.scatter(self.init_embed.T[0], self.init_embed.T[1], marker=MarkerStyle(self.plotting_markers), c=self.plotting_colors, s=self.plotting_size)
         # else:
         #     line = self.plotting_ax.scatter(self.init_embed.T[0], self.init_embed.T[1], self.init_embed.T[2], marker=MarkerStyle(self.plotting_markers), c=self.plotting_colors, s=self.plotting_size)
         
 
         
-        if self.n_dimensions==2:
+        if self.n_components==2:
             line = self.plotting_ax.scatter(self.init_embed.T[0], self.init_embed.T[1], label=self.plotting_labels, c=self.plotting_colors, s=self.plotting_size)
         else:
             line = self.plotting_ax.scatter(self.init_embed.T[0], self.init_embed.T[1], self.init_embed.T[2], label=self.plotting_labels, c=self.plotting_colors, s=self.plotting_size)
         if self.plotting_labels is not None:
             leg = self.plotting_ax.legend(*line.legend_elements(), loc="lower right")
             self.plotting_ax.add_artist(leg)
-        ani = animation.FuncAnimation(self.plotting_fig, self.__update_anim, self.max_iter, fargs=[p, self.plotting_ax], interval=100, repeat=False)
+        ani = animation.FuncAnimation(self.plotting_fig, self.__update_anim, self.n_iter, fargs=[p, self.plotting_ax], interval=100, repeat=False)
         plt.show()
-        # result = self.__gradient_descent(self.max_iter, p*self.early_exaggeration, return_last)
+        # result = self.__gradient_descent(self.n_iter, p*self.early_exaggeration, return_last)
         
         
         #====Salida por consola de verbosidad====================================================================================================================
         if self.verbose>0:
             t = (time.time_ns()-t0)*1e-9
-            tiempos = np.array([t, t/self.max_iter])
+            tiempos = np.array([t, t/self.n_iter])
             tiempos_exacto = np.floor(tiempos)
             tH = np.floor(tiempos_exacto/3600, dtype=int)
             tM = np.floor(tiempos_exacto/60, dtype=int)-60*tH
@@ -525,7 +525,7 @@ class TSne():
     def __update_embed(self, i, affinities):
         if self.verbose>1 and i%self.iters_check==0:
             print("---------------------------------")
-            print("Comenzando iteracion {}/{}".format(i,self.max_iter))
+            print("Comenzando iteracion {}/{}".format(i,self.n_iter))
 
         embed_dist = similarities.pairwise_euclidean_distance(self.current_embed)
         q = similarities.joint_probabilities_student(embed_dist)
@@ -563,7 +563,7 @@ class TSne():
         
         x = self.current_embed.T[0]
         y = self.current_embed.T[1]
-        if self.n_dimensions ==3:
+        if self.n_components==3:
             z = self.current_embed.T[2]
         
         leg_aux1 = []
@@ -572,7 +572,7 @@ class TSne():
         for m in np.unique(self.plotting_marker_result):
             cond = self.plotting_marker_result==m
             l = None if self.plotting_labels is None else self.plotting_labels[cond]
-            if self.n_dimensions==2:
+            if self.n_components==2:
                 line = ax.scatter(x[cond], y[cond], marker=m, c=self.plotting_colors[cond], label=l, s=self.plotting_size)
             else:
                 line = ax.scatter(x[cond], y[cond], z[cond], marker=m, c=self.plotting_colors[cond], label=l, s=self.plotting_size)
@@ -588,7 +588,7 @@ class TSne():
             ax.add_artist(leg)
 
         # Title
-        plt.title("Current Iteration: {}/{} \n Best cost: i={}, cost={:.3f}".format(i+1, self.max_iter, self.embed_i, self.embed_cost))
+        plt.title("Current Iteration: {}/{} \n Best cost: i={}, cost={:.3f}".format(i+1, self.n_iter, self.embed_i, self.embed_cost))
         if i>10:
             print("todo bien")
             exit(0)

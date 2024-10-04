@@ -1,6 +1,7 @@
 import numpy as np
-import tests.comparacion as comp
-from src.animatsne import utils as ut
+# import tests.comparacion as comp
+# import tests.utils as ut
+from tests import comparacion, utils
 import gc
 
 #=================================================================#
@@ -9,13 +10,17 @@ first_column = True
 skip_start = True
 usar_rutas_fragmentadas = False
 #-----------------------------------------------------------------
-routes_train = ["data/mnist_train_p1.csv", "data/mnist_train_p2.csv", "data/mnist_train_p3.csv", "data/mnist_train_p4.csv", "data/mnist_train_p5.csv", "data/mnist_train_p6.csv"]
+ruta_base = "tests/data/mnist_train_p{}.csv"
+routes_train = []
+for i in range(7):
+    routes_train.append(ruta_base.format(i))
+# routes_train = ["data/mnist_train_p1.csv", "data/mnist_train_p2.csv", "data/mnist_train_p3.csv", "data/mnist_train_p4.csv", "data/mnist_train_p5.csv", "data/mnist_train_p6.csv"]
 if usar_rutas_fragmentadas:
-    data_train, labels_train = ut.read_csv(routes_train, labels_in_first_column=first_column, num_type=n_type, skip_start_row=skip_start)
-    data_test, labels_test = ut.read_csv("data/mnist_test.csv", labels_in_first_column=first_column, num_type=n_type, skip_start_row=skip_start)
+    data_train, labels_train = utils.read_csv(routes_train, labels_in_first_column=first_column, num_type=n_type, skip_start_row=skip_start)
+    data_test, labels_test = utils.read_csv("tests/data/mnist_test.csv", labels_in_first_column=first_column, num_type=n_type, skip_start_row=skip_start)
 else:
-    data_train, labels_train = ut.read_csv("data_full/mnist_train.csv", labels_in_first_column=first_column, num_type=n_type, skip_start_row=skip_start)
-    data_test, labels_test = ut.read_csv("data_full/mnist_test.csv", labels_in_first_column=first_column, num_type=n_type, skip_start_row=skip_start)
+    data_train, labels_train = utils.read_csv("tests/data_full/mnist_train.csv", labels_in_first_column=first_column, num_type=n_type, skip_start_row=skip_start)
+    data_test, labels_test = utils.read_csv("tests/data_full/mnist_test.csv", labels_in_first_column=first_column, num_type=n_type, skip_start_row=skip_start)
 #-----------------------------------------------------------------
 seed = 2
 n_samples = 600
@@ -40,22 +45,27 @@ del random_indexes
 #=================================================================#
 #---Parametros ejecucion-------
 caso_prueba = "mio"
-display_embed = False
-print_tiempo = True
-print_trust = True
+
+parametros_train = [data_entrenamiento, labels_entrenamiento]
+parametros_print = {
+    "display": False,
+    "print_tiempo": True,
+    "trust": True,
+}
+
 #=================================================================#
 
 match caso_prueba:
     case "mio":
-        comp.probar_mio(data_entrenamiento, labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo, trust=print_trust)
+        comparacion.probar_mio(*parametros_train, **parametros_print)
     case "skl":
-        comp.probar_sklearn(data_entrenamiento, labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo, trust=print_trust)
+        comparacion.probar_sklearn(*parametros_train, **parametros_print)
     case "open":
-        comp.probar_open(data_entrenamiento, labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo, trust=print_trust)
+        comparacion.probar_open(*parametros_train, **parametros_print)
     case "pca":
-        comp.probar_pca(data_entrenamiento,labels_entrenamiento, display=display_embed, print_tiempo=print_tiempo, trust=print_trust)
+        comparacion.probar_pca(*parametros_train, **parametros_print)
     case "autoencoders":
-        comp.probar_autoencoder(data_entrenamiento, test_data=data_entrenamiento, test_labels=labels_entrenamiento, display=display_embed, display_amount=1000, print_tiempo=print_tiempo, trust=print_trust)
+        comparacion.probar_autoencoder(data_entrenamiento, *parametros_train, display_amount=1000, **parametros_print)
     case "dims":
         print("data.ndim: {}".format(input.ndim))
         print("Data shape: {}".format(input.shape))

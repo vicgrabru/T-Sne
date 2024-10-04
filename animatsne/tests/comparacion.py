@@ -1,5 +1,5 @@
 import numpy as np
-from src.animatsne import utils as ut
+import tests.utils as ut
 import time
 
 
@@ -20,62 +20,55 @@ start_momentum = 0.5
 end_momentum = 0.8
 momentum_threshold = 250
 
+# nivel_verbose = 1
 
 argumentos_globales_modelos = {
-    "perplexity": 50
-}
-
-
-argumentos_modelo_mio = {
-    "n_dimensions": 2,
+    "n_components": 2,
     "perplexity": 50,
-    "perplexity_tolerance": 1e-10,
+    "n_iter": 5000,
     "early_exaggeration": 12,
     "learning_rate": "auto",
+    "verbose": 1,
+}
+
+argumentos_modelo_mio = {
+    "perplexity_tolerance": 1e-10,
     "init": "random",
-    "max_iter": 5000,
     "starting_momentum":  0.5,
     "ending_momentum":  0.8,
     "momentum_threshold": 250,
     "seed": 4,
-    "verbose": 1,
     "iters_check": 50,
 }
 
 argumentos_modelo_skl = {
-    "n_components": 2,
-    "learning_rate": "auto",
     "init": "random",
-    "perplexity": 50,
-    "early_exaggeration": 12,
-    "verbose": 1,
 }
 
 argumentos_modelo_open = {
-    "n_iter": 5000,
-    "n_components": 2,
-    "perplexity": 50,
-    "early_exaggeration": 12,
     "early_exaggeration_iter": 250,
     "initial_momentum": 0.5,
     "final_momentum": 0.8,
-    "learning_rate": "auto",
-    "verbose": 1,
-
 }
 
+argumentos_pca = {
+    "n_components": 2,
+    "svd_solver": "randomized",
+    "random_state": 4,
+}
 
-#---Cosas que mostrar por consola----------------------#
-nivel_verbose=0
+argumentos_autoencoders = {
+"epochs": 10,
+"shuffle": True,
+"verbose": 1,
+}
 #======================================================#
 
 #===Mio======================================================================#
 def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, trust=False):
     if print_tiempo:
         argumentos_modelo_mio["verbose"] = 0
-    verbosidad = 0 if print_tiempo else nivel_verbose
-    from src.animatsne import animatsne
-    perplexity_tolerance = 1e-10
+    from animatsne import animatsne
     
     t0 = time.time_ns()
     model = animatsne.TSne(**argumentos_modelo_mio, **argumentos_globales_modelos)
@@ -94,14 +87,15 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
         del embed,title
 
     del t_diff,t0
-    del data_embedded,model,perplexity_tolerance,verbosidad
+    del data_embedded,model
 
 #===Scikit-learn=============================================================#
 def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=False, trust=False):
+    if print_tiempo:
+        argumentos_modelo_mio["verbose"] = 0
     import sklearn.manifold as mnf
-    verbosidad = 0 if print_tiempo else nivel_verbose
     t0 = time.time_ns()
-    model = mnf.TSNE(verbose=verbosidad, **argumentos_modelo_skl)
+    model = mnf.TSNE(**argumentos_modelo_skl, **argumentos_globales_modelos)
 
     data_embedded = model.fit_transform(data)
     t_diff = (time.time_ns()-t0)*1e-9
@@ -114,19 +108,12 @@ def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=Fals
 
 #===openTSNE=================================================================#
 def probar_open(data, labels, *, verbose=1, display=False, title=None, print_tiempo=False, trust=False):
+    if print_tiempo:
+        argumentos_modelo_mio["verbose"] = 0
     import openTSNE
-    verbosidad = 0 if print_tiempo else nivel_verbose
     t0 = time.time_ns()
 
-    model = openTSNE.TSNE(n_iter=max_iter,
-                          n_components=n_dimensions,
-                          perplexity=perplexity,
-                          early_exaggeration=early_exaggeration,
-                          early_exaggeration_iter=momentum_threshold,
-                          initial_momentum=start_momentum,
-                          final_momentum=end_momentum,
-                          learning_rate=lr,
-                          verbose=verbosidad)
+    model = openTSNE.TSNE(**argumentos_globales_modelos, **argumentos_modelo_open)
     data_embedded = model.fit(data)
     t_diff = (time.time_ns()-t0)*1e-9
     if print_tiempo:
@@ -142,7 +129,7 @@ def probar_open(data, labels, *, verbose=1, display=False, title=None, print_tie
 def probar_pca(data, labels, *, display=False, title=None, print_tiempo=False, trust=False):
     from sklearn.decomposition import PCA
     t0 = time.time_ns()
-    pca = PCA(n_components=n_dimensions, svd_solver="randomized", random_state=seed)
+    pca = PCA(**argumentos_pca)
     # Always output a numpy array, no matter what is configured globally
     pca.set_output(transform="default")
     data_embedded = pca.fit_transform(data).astype(np.float32, copy=False)
@@ -193,7 +180,7 @@ def probar_autoencoder(train_data, test_data, test_labels, *, display=False, tit
     sgd = SGD(learning_rate=0.02)
     t0 = time.time_ns()
     autoencoder.compile(optimizer='sgd', loss='mse')
-    autoencoder.fit(train_data, train_data, epochs=10, shuffle=True, validation_data=(test_data, test_data), verbose=nivel_verbose)
+    autoencoder.fit(train_data, train_data, validation_data=(test_data, test_data), **argumentos_autoencoders)
     t_diff = (time.time_ns()-t0)*1e-9
     
     
