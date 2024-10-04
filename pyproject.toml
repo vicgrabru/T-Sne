@@ -37,7 +37,4 @@ Homepage = "https://github.com/vicgrabru/animatsne"
 Issues = "https://github.com/vicgrabru/animatsne/issues"
 
 [tool.setuptools]
-packages = ["animatsne", "animatsne.animatsne,"animatsne.similarities"]
-
-[tool.setuptools.packages.find]
-exclude = ["tests*"]
+package-dir = {"" = "animatsne"}

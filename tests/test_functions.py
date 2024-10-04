@@ -1,6 +1,6 @@
 import numpy as np
 import tests.comparacion as comp
-import animatsne.utils as ut
+from src.animatsne import utils as ut
 import gc
 
 #=================================================================#
