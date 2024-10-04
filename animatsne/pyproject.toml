@@ -18,7 +18,7 @@ maintainers = [
   { name="Victor Gravan Bru", email="vgravanbru@gmail.com"}
 ]
 description = "A library that displays the process of the T-Sne algorithm"
-readme = "README.md"
+readme = "readme-pypi.md"
 keywords = ["tsne", "algorithm visualization"]
 classifiers = [
   "Development Status :: 4 - Beta",
