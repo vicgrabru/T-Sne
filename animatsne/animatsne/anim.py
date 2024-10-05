@@ -1,9 +1,6 @@
 import numpy as np
 import time
-import gc
-from matplotlib.markers import MarkerStyle
 from matplotlib.axes import Axes
-from matplotlib.path import Path
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from collections.abc import Sequence
@@ -11,7 +8,6 @@ from . import similarities
 
 def _is_array_like(input) -> bool:
     return isinstance(input, (np.ndarray, Sequence)) and not isinstance(input, str)
-
 def _assert_input(var_name:str, input=None, check="int", *,
                   accepted_values:list=None, less:int|float=None,
                   more:int|float=None, less_equal:int|float=None,
@@ -44,10 +40,7 @@ def _assert_input(var_name:str, input=None, check="int", *,
                 assert int(np.ceil(input)) in within_range, "{} must be in range(start={}, stop={}, step={})".format(var_name, within_range.start, within_range.stop, within_range.step)
         if accepted_values is not None and len(accepted_values)!=0:
             assert input in accepted_values, "only accepted values for {} are {}".format(var_name, accepted_values)
-    
 
-
-#===Gradiente====================================================================================================
 def gradient(P:np.ndarray, Q:np.ndarray, y:np.ndarray,y_dist:np.ndarray) -> np.ndarray:
     # not_diag = np.expand_dims(~np.eye(P.shape[0], dtype=bool), axis=2)
     pq = P-Q
@@ -56,7 +49,6 @@ def gradient(P:np.ndarray, Q:np.ndarray, y:np.ndarray,y_dist:np.ndarray) -> np.n
     y_diff =  np.expand_dims(y,1)-np.expand_dims(y,0)
     result = np.expand_dims(pq, 2) * y_diff * np.expand_dims(1/(1+y_dist), 2)
     return 4 * result.sum(axis=1)
-#===Funcion de coste: Kullback-Leibler divergence================================================================
 def kl_divergence(P, Q) -> float:
     """Computes the Kullback-Leibler divergence
     Parameters
@@ -173,7 +165,7 @@ class TSne():
         Also the iteration of the final embedding.
     """
     def __init__(self, *,
-                 n_components=2,
+                 n_dimensions=2,
                  init:str|Sequence|np.ndarray="random",
                  perplexity=30.,
                  perplexity_tolerance=1e-2,
@@ -185,12 +177,9 @@ class TSne():
                  momentum_threshold=250,
                  n_iter=1000,
                  iters_check=50,
-                 random_state:int=None,
+                 seed:int=None,
                  verbose=0,
                  ):
-        
-        n_dimensions = n_components
-        seed = random_state
         #===validacion de parametros=================================================================================
         self.__init_validation(n_dimensions, perplexity, perplexity_tolerance, metric, init, early_exaggeration, learning_rate, n_iter, starting_momentum, ending_momentum, momentum_threshold, seed, verbose, iters_check)
 
@@ -502,7 +491,6 @@ class TSne():
         embed_dist = similarities.pairwise_euclidean_distance(self.embed)
         q = similarities.joint_probabilities_student(embed_dist)
 
-
         # Momentum switch
         if i<self._momentum_threshold:
             p = self._early_exaggeration*affinities
@@ -528,8 +516,6 @@ class TSne():
         self.embed += self._update
         if self.embedding_record is not None:
             self.embedding_record.append(self.embed.copy())
-
-
     def __update_anim(self, i, affinities, ax:Axes):
         self.__update_embed(i, affinities)
         
@@ -564,9 +550,6 @@ class TSne():
 
         # Title
         plt.title("Current Iteration: {}/{} \n Best cost: i={}, cost={:.3f}".format(i+1, self.n_iter, self._best_iter, self._best_cost))
-        if i>=10:
-            print("todo bien")
-            exit(0)
 
     def get_best_embed_info(self):
         """Returns the best cost achieved and the iteration it belongs to
