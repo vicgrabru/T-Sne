@@ -42,9 +42,9 @@ argumentos_pca = {
 }
 
 argumentos_autoencoders = {
-"epochs": 10,
-"shuffle": True,
-"verbose": 1,
+    "epochs": 10,
+    "shuffle": True,
+    "verbose": 1,
 }
 
 #===Mio======================================================================#
