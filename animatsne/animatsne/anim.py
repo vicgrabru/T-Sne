@@ -99,7 +99,7 @@ class TSne():
     
     metric : str, default='euclidean'
         The metric for the distance calculations.
-        Currently, only supported metric is 'euclidean'
+        Currently, only supported metrics are 'euclidean' and 'precomputed'
     
     early_exaggeration : int or float, default=12.
         The exaggeration factor for the first phase of the embedding.
@@ -133,7 +133,7 @@ class TSne():
     
     iters_check : int, default=50
         The cost function will be computed every iters_check iterations.
-        Must be at least 1.
+        Must be at least 1 and at most n_iter.
     
     seed : int, default=None
         Value to seed the rng Generator through numpy.
@@ -300,7 +300,7 @@ class TSne():
         _assert_input("seed", seed, "int", more_equal=0)
         
         # Iters check: int
-        _assert_input("iters_check", iters_check, "int", more_equal=1)
+        _assert_input("iters_check", iters_check, "int", more_equal=1, less_equal=n_iter)
         if iters_check is not None:
             assert iters_check<=n_iter, "iters_check cannot be greater than n_iter"
         
