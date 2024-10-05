@@ -14,13 +14,16 @@ argumentos_globales_modelos = {
 
 
 argumentos_modelo_mio = {
+    "n_dimensions": 2,
     "perplexity_tolerance": 1e-10,
     "init": "random",
     "starting_momentum":  0.5,
     "ending_momentum":  0.8,
     "momentum_threshold": 250,
     "iters_check": 50,
+    "seed": 4
 }; argumentos_modelo_mio.update(argumentos_globales_modelos)
+argumentos_modelo_mio.pop("n_components");argumentos_modelo_mio.pop("random_state")
 
 argumentos_modelo_skl = {
     "init": "random",
