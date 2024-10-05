@@ -14,9 +14,6 @@ requires-python = ">=3.10"
 authors = [
   { name="Victor Gravan Bru", email="vgravanbru@gmail.com"}
 ]
-maintainers = [
-  { name="Victor Gravan Bru", email="vgravanbru@gmail.com"}
-]
 description = "A library that displays the process of the T-Sne algorithm"
 readme = "readme-pypi.md"
 keywords = ["tsne", "algorithm visualization"]

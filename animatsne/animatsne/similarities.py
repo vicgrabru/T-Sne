@@ -50,19 +50,22 @@ def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, tolerance:flo
 
 #Deviations
 def __search_cond_p(dist, goal, tolerance, iters, not_diag, *, min_deviation=1e-20, max_deviation=1e5) -> float:
-    for _ in range(iters):
+    # for _ in range(iters):
+    i = 0
+    while True:
         new_deviation = (min_deviation+max_deviation)/2
         p = __conditional_p(dist, [new_deviation], not_diag)
         
         diff = __perplexity(p) - goal
-        
-        if abs(diff) <= tolerance:
+        cond = tolerance==0 and i>=iters
+        if abs(diff) <= tolerance or cond:
             break
 
         if diff > 0: # nueva_perplejidad > objetivo
             max_deviation = new_deviation
         else: # nueva_perp < objetivo
             min_deviation = new_deviation
+        i+=1
     return p[0]
 
             
