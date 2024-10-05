@@ -4,9 +4,17 @@ def pairwise_euclidean_distance(X, *, sqrt=False, condensed=False) -> np.ndarray
     """Compute the euclidean distances between the vectors of the given input.
     Parameters
     ----------
-    X : {array-like, matrix} of shape (n_samples_X, n_features)
+    X : array-like of shape (n_samples_X, n_features)
         An array where each row is a sample and each column is a feature.
-
+    
+    sqrt : boolean, default=False.
+        If True, uses metric "sqeuclidean".
+        Uses "euclidean" otherwise.
+    
+    condensed : bool, default=False
+        If True, returns the condensed form of the array.
+        Returns square form otherwise.
+    
     Returns
     -------
     distances : ndarray of shape (n_samples_X, n_samples_X)
@@ -20,7 +28,7 @@ def pairwise_euclidean_distance(X, *, sqrt=False, condensed=False) -> np.ndarray
     return result
 
 #===Joint Probabilities (Gaussian))========================================
-def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, tolerance:float=None, search_iters=10000) -> np.ndarray:
+def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, tolerance:float=0., search_iters=10000) -> np.ndarray:
     """Obtain the joint probabilities (or affinities) of the points with the given distances.
 
     Parameters
@@ -28,14 +36,15 @@ def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, tolerance:flo
     distances : ndarray of shape (n_samples, n_samples)
         An array with the distances between the different points. The distances must be calculated without performing the square root
 
-    perplexity : int. default = 10.0
-        An array where each row is a sample and each column is a feature.
-        Optional. If None, it assumes `Y=X`.
+    perplexity : float, default = 10.0
+        Goal perplexity value.
     
-    tolerance : float. default = 0.1
-        The ratio of tolerance for the goal perplexity expressed as
-        per-unit (e.g.: a tolerance of 25% would be 0.25).
+    tolerance : float, default = 0.1
+        Acceptable perplexities will be in the range [perplexity-tolerance, perplexity+tolerande].
         Note: If 0, the result perplexity must be exact
+    
+    search_iters : int, default = 10000
+        Number of iterations of search for the value of each sigma
 
     Returns
     -------
@@ -50,7 +59,6 @@ def joint_probabilities_gaussian(dists:np.ndarray, perplexity:int, tolerance:flo
 
 #Deviations
 def __search_cond_p(dist, goal, tolerance, iters, not_diag, *, min_deviation=1e-20, max_deviation=1e5) -> float:
-    # for _ in range(iters):
     i = 0
     while True:
         new_deviation = (min_deviation+max_deviation)/2
@@ -58,36 +66,24 @@ def __search_cond_p(dist, goal, tolerance, iters, not_diag, *, min_deviation=1e-
         
         diff = __perplexity(p) - goal
         cond = tolerance==0 and i>=iters
-        if abs(diff) <= tolerance or cond:
+        if abs(diff) <= abs(tolerance) or cond:
             break
 
-        if diff > 0: # nueva_perplejidad > objetivo
+        if diff > 0:
             max_deviation = new_deviation
-        else: # nueva_perp < objetivo
+        else:
             min_deviation = new_deviation
         i+=1
     return p[0]
 
-            
-
 #Perplexity
 def __perplexity(cond_p:np.ndarray) -> np.ndarray:
-    """Compute the perplexity from all the conditional p_{j|i}
-    following the formula
-    Perp(P_i) = 2**(-sum( p_{j|i}*log_2(p_{j|i})))
-    """
-    # aux = cond_p*np.log2(cond_p)
-    condicion = cond_p!=0
-    eje = None if min(cond_p.shape)==1 else 1
-    return 2**(-np.sum(cond_p*np.log2(cond_p, where=condicion), axis=eje, where=condicion))
-    
-
+    condition = cond_p!=0
+    ax = None if min(cond_p.shape)==1 else 1
+    return 2**(-np.sum(cond_p*np.log2(cond_p, where=condition), axis=ax, where=condition))
 
 #Conditional Probabilities
 def __conditional_p(distances:np.ndarray, sigmas, not_diag) -> np.ndarray:
-    """Compute the conditional similarities p_{j|i} and p_{i|j}
-    using the distances and standard deviations 
-    """
     aux = np.exp(-distances/(2*np.square(np.reshape(sigmas, [-1,1]))))
     if min(distances.shape)==1:
         indice = np.argmin(distances)
@@ -98,21 +94,12 @@ def __conditional_p(distances:np.ndarray, sigmas, not_diag) -> np.ndarray:
 
 #===Joint Probabilities (T-Student)========================================
 def joint_probabilities_student(distances:np.ndarray)-> np.ndarray:
-    """Obtain the joint probabilities (or affinities) of the points with the given distances.
+    """Obtain the joint probabilities q.
 
     Parameters
     ----------
     distances : ndarray of shape (n_samples, n_samples)
         An array with the distances between the different points. The distances must be calculated without performing the square root
-
-    perplexity : int. default = 10.0
-        An array where each row is a sample and each column is a feature.
-        Optional. If None, it assumes `Y=X`.
-    
-    tolerance : float. default = 0.1
-        The ratio of tolerance for the goal perplexity expressed as
-        per-unit (e.g.: a tolerance of 25% would be 0.25).
-        Note: If 0, the result perplexity must be exact
 
     Returns
     -------
@@ -120,13 +107,9 @@ def joint_probabilities_student(distances:np.ndarray)-> np.ndarray:
     """
     d = 1/(1+distances)
     return d/(d.sum()-d.trace())
-    # d1 = d.copy()
-    # np.fill_diagonal(d1, 0.)
-    # return d/d1.sum()
 
-    # return d/d.sum(where=~np.eye(distances.shape[0], dtype=bool))
-#===Vecinos mas cercanos===================================================
-def get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:
+#===Nearest Neighbors===================================================
+def __get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:
     if distances.shape.ndim!=2 or len(distances) != distances.shape[1]:
         raise ValueError("distances must be a square 2D array")
     
@@ -143,7 +126,7 @@ def get_neighbor_ranking_by_distance_safe(distances) -> np.ndarray:
             result[i][j] = rank+1
     return result
 
-def get_neighbor_ranking_by_distance_fast(distances) -> np.ndarray:
+def __get_neighbor_ranking_by_distance_fast(distances) -> np.ndarray:
     if distances.shape.ndim!=2 or len(distances) != distances.shape[1]:
         raise ValueError("distances must be a square 2D array")
 
@@ -156,7 +139,7 @@ def get_neighbor_ranking_by_distance_fast(distances) -> np.ndarray:
     
     return result
 
-def get_is_neighbor(distances:np.ndarray, n_neighbors):
+def __get_is_neighbor(distances:np.ndarray, n_neighbors):
     result = np.zeros(shape=distances.shape, dtype=bool)
     filas = np.array([1 for _ in range(len(n_neighbors))], dtype=int)
     indices_neighbors = np.argsort(distances, axis=1)[:,:n_neighbors]

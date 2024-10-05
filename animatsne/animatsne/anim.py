@@ -397,10 +397,12 @@ class TSne():
             If None, all samples will be asumed to have the same label.
         
         record_embed : boolean, default=False.
-            If True, a record of each iteration of embedding is kept in a list. This list can be retrieved by calling get_embed_record()
+            If True, a record of each iteration of embedding is kept in a list.
+            This list is stored in the parameter embedding_record.
         
         record_cost : boolean, default=False.
-            If True, a record of the value of the cost function throughout the embedding process is kept in a dictionary. This dictionary can be retrieved by calling get_cost_record()
+            If True, a record of the value of the cost function throughout the embedding process is kept in a dictionary.
+            This dictionary is stored in the parameter cost_record.
         
         gif_filename: str or None. default=None. Optional.
             The file to output the animation to.
