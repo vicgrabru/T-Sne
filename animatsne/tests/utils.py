@@ -51,17 +51,15 @@ def read_csv(route, *, labels_in_first_column=False, num_type=np.int8, skip_star
 
 def display_embed(embed, labels, *, title=None):
     is3d = embed.ndim>2
+    fig, ax = plt.subplots() if embed.ndim==2 else plt.subplots(subplot_kw=dict({"projection": "3d"}))
     x = embed.T[0]
     y = embed.T[1]
-    fig = plt.figure()
     if is3d:
-        ax = fig.add_subplot(projection='3d')
         z = embed.T[2]
-        ax.scatter(x,y,z, marker='o', label=labels)
-        # for i in range(0, len(embed)):
-        #     plt.plot(x[i], y[i], z[i], marker='o', linestyle='', markersize=5, label=labels[i])
-    else:
-        for i in range(0, len(embed)):
+    for i in range(0, len(embed)):
+        if is3d:
+            plt.plot(x[i], y[i], z[i], marker='o', linestyle='', markersize=5, label=labels[i])
+        else:
             plt.plot(x[i], y[i], marker='o', linestyle='', markersize=5, label=labels[i])
     
 
@@ -69,6 +67,8 @@ def display_embed(embed, labels, *, title=None):
     labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0]))
     by_label = dict(zip(labels, handles))
     plt.legend(by_label.values(), by_label.keys(), draggable=True, loc='upper right')
+
+
     if title is not None:
         plt.title(title)
     plt.show()
@@ -98,10 +98,3 @@ def print_trust(data, embed, metodo):
     print("============================================")
     print("Trust con {}: {:.3f} %".format(metodo, trust*100))
     print("============================================")
-
-def merge_pathcollections(cols:list[PathCollection]):
-    
-    for p in cols:
-        p.get_paths
-    PathCollection
-    pass

@@ -8,7 +8,7 @@ argumentos_globales_modelos = {
     "n_iter": 5000,
     "early_exaggeration": 12,
     "learning_rate": "auto",
-    "verbose": 1,
+    "verbose": 0,
     "random_state": 4,
 }
 

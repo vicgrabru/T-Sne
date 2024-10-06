@@ -44,11 +44,12 @@ del random_indexes
 
 #=================================================================#
 #---Parametros ejecucion-------
-caso_prueba = "mio"
+caso_prueba = "skl"
+string_titulo = "Resultado de {} con {} muestras"
 
 parametros_train = [data_entrenamiento, labels_entrenamiento]
 parametros_print = {
-    "display": False,
+    "display": True,
     "print_tiempo": True,
     "trust": True,
 }
@@ -57,14 +58,19 @@ parametros_print = {
 
 match caso_prueba:
     case "mio":
+        parametros_print["title"] = string_titulo.format("animatsne", n_samples)
         comparacion.probar_mio(*parametros_train, **parametros_print)
     case "skl":
+        parametros_print["title"] = string_titulo.format("scikit-learn", n_samples)
         comparacion.probar_sklearn(*parametros_train, **parametros_print)
     case "open":
+        parametros_print["title"] = string_titulo.format("openTSNE", n_samples)
         comparacion.probar_open(*parametros_train, **parametros_print)
     case "pca":
+        parametros_print["title"] = string_titulo.format("PCA", n_samples)
         comparacion.probar_pca(*parametros_train, **parametros_print)
     case "autoencoders":
+        parametros_print["title"] = string_titulo.format("autoencoders", n_samples)
         comparacion.probar_autoencoder(data_entrenamiento, *parametros_train, display_amount=1000, **parametros_print)
     case "dims":
         print("data.ndim: {}".format(input.ndim))
