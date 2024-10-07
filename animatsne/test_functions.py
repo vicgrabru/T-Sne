@@ -10,12 +10,8 @@ first_column = True
 skip_start = True
 usar_rutas_fragmentadas = False
 #-----------------------------------------------------------------
-ruta_base = "tests/data/mnist_train_p{}.csv"
-routes_train = []
-for i in range(7):
-    routes_train.append(ruta_base.format(i))
-# routes_train = ["data/mnist_train_p1.csv", "data/mnist_train_p2.csv", "data/mnist_train_p3.csv", "data/mnist_train_p4.csv", "data/mnist_train_p5.csv", "data/mnist_train_p6.csv"]
 if usar_rutas_fragmentadas:
+    routes_train = ["tests/data/mnist_train_p{}.csv".format(i) for i in range(7)]
     data_train, labels_train = utils.read_csv(routes_train, labels_in_first_column=first_column, num_type=n_type, skip_start_row=skip_start)
     data_test, labels_test = utils.read_csv("tests/data/mnist_test.csv", labels_in_first_column=first_column, num_type=n_type, skip_start_row=skip_start)
 else:
@@ -23,10 +19,10 @@ else:
     data_test, labels_test = utils.read_csv("tests/data_full/mnist_test.csv", labels_in_first_column=first_column, num_type=n_type, skip_start_row=skip_start)
 #-----------------------------------------------------------------
 seed = 2
-n_samples = 600
+n_samples = 300
 index_start = 0
 rng = np.random.default_rng(seed)
-usar_conjunto_entero = False
+usar_conjunto_entero = True
 if usar_conjunto_entero:
     data_full = np.append(data_train,data_test,axis=0)
     labels_full = np.append(labels_train,labels_test,axis=0)
@@ -34,7 +30,6 @@ if usar_conjunto_entero:
     random_indexes = rng.integers(index_start, len(data_full), size=n_samples)
     data_entrenamiento = data_full[random_indexes, :]
     labels_entrenamiento = labels_full[random_indexes]
-    del data_full,labels_full
 else:
     random_indexes = rng.integers(index_start, len(data_train), size=n_samples)
     data_entrenamiento = data_train[random_indexes, :]
@@ -44,16 +39,22 @@ del random_indexes
 
 #=================================================================#
 #---Parametros ejecucion-------
-caso_prueba = "skl"
+caso_prueba = "pca"
 string_titulo = "Resultado de {} con {} muestras"
 
 parametros_train = [data_entrenamiento, labels_entrenamiento]
 parametros_print = {
-    "display": True,
+    "display": False,
     "print_tiempo": True,
-    "trust": True,
+    "trust": n_samples<=40000,
 }
 
+
+
+if n_samples>5000:
+    parametros_print["display"] = False
+
+print("n_samples: {}".format(n_samples))
 #=================================================================#
 
 match caso_prueba:

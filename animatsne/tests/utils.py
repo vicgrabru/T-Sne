@@ -75,21 +75,21 @@ def display_embed(embed, labels, *, title=None):
 
 
 def print_tiempo(t, metodo="Mio"):
-    t_exact = np.floor(t)
-    tH = int(np.floor(t_exact/3600))
-    tM = int(np.floor(t_exact/60)-60*tH)
-    tS = "{:.6f}".format(t-(3600*tH+60*tM)).zfill(9)
     print("============================================")
     print(metodo + " finished")
-    if t_exact>60:
-        if t_exact>=3600: # <1h
-            texto = "Execution time (h:min:sec): {}:{}:{}".format(tH,tM,tS)
-        else:
-            texto = "Execution time (min:sec): {}:{}".format(tM,tS)
-        texto += " ({} s)".format(t)
-    else:
-        texto = "Execution time (s): {}".format(t)
-    print(texto)
+    # t_exact = np.floor(t)
+    # tH = int(np.floor(t_exact/3600))
+    # tM = int(np.floor(t_exact/60)-60*tH)
+    # tS = t-(3600*tH+60*tM)
+    # if t_exact>60:
+    #     if t_exact>=3600: # <1h
+    #         texto = "Execution time (h:min:sec): {}:{}:{:.3f}".format(tH,tM,tS)
+    #     else:
+    #         texto = "Execution time (min:sec): {}:{:.3f}".format(tM,tS)
+    #     texto += " ({:.3f} s)".format(t)
+    # else:
+    #     texto = "Execution time (s): {:.3f}".format(t)
+    print("Execution time (s): {:.3f}".format(t))
     print("============================================")
 
 def print_trust(data, embed, metodo):

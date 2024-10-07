@@ -42,9 +42,9 @@ argumentos_pca = {
 }
 
 argumentos_autoencoders = {
-    "epochs": 10,
+    "epochs": 5000,
     "shuffle": True,
-    "verbose": 1,
+    "verbose": 0,
 }
 
 #===Mio======================================================================#
@@ -55,7 +55,16 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
     
     t0 = time.time_ns()
     model = anim.TSne(**argumentos_modelo_mio)
-    data_embedded = model.fit(data, labels)
+
+    gif_params = {
+        "gif_filename": "gif-ejecucion-{}-samples.gif".format(len(data)),
+        "gif_kwargs": {
+            "writer": 'imagemagick',
+            "fps": 60,
+        }
+    }
+
+    data_embedded = model.fit(data, labels, **gif_params)
     t_diff = (time.time_ns()-t0)*1e-9
     
     if print_tiempo:
