@@ -80,7 +80,7 @@ def probar_mio(data, labels, *, display=False, title=None, print_tiempo=False, t
 #===Scikit-learn=============================================================#
 def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=False, trust=False):
     if print_tiempo:
-        argumentos_modelo_mio["verbose"] = 0
+        argumentos_modelo_skl["verbose"] = 0
     import sklearn.manifold as mnf
     t0 = time.time_ns()
     model = mnf.TSNE(**argumentos_modelo_skl)
@@ -97,7 +97,7 @@ def probar_sklearn(data, labels, *, display=False, title=None, print_tiempo=Fals
 #===openTSNE=================================================================#
 def probar_open(data, labels, *, verbose=1, display=False, title=None, print_tiempo=False, trust=False):
     if print_tiempo:
-        argumentos_modelo_mio["verbose"] = 0
+        argumentos_modelo_open["verbose"] = False
     import openTSNE
     t0 = time.time_ns()
 
@@ -134,6 +134,14 @@ def probar_pca(data, labels, *, display=False, title=None, print_tiempo=False, t
 
 #===Autoencoder==============================================================#
 def probar_autoencoder(train_data, test_data, test_labels, *, display=False, title=None, display_amount=-1, print_tiempo=False, trust=False):
+    if display_amount>0:
+        rand_indices = np.random.randint(low=0, high=len(test_data), size=display_amount)
+        display_data = test_data[rand_indices]
+        display_labels = test_labels[rand_indices]
+    else:
+        display_data = test_data
+        display_labels = test_labels
+    
     from keras.api import Sequential
     from keras.api.layers import Dense
     from keras.api.models import Model
@@ -166,20 +174,14 @@ def probar_autoencoder(train_data, test_data, test_labels, *, display=False, tit
     from keras.api.optimizers import SGD
     sgd = SGD(learning_rate=0.02)
     t0 = time.time_ns()
+
     autoencoder.compile(optimizer='sgd', loss='mse')
     autoencoder.fit(train_data, train_data, validation_data=(test_data, test_data), **argumentos_autoencoders)
-    t_diff = (time.time_ns()-t0)*1e-9
     
-    
-    rand_indices = np.random.randint(low=0, high=len(test_data), size=display_amount)
-    if display_amount>0:
-        display_data = test_data[rand_indices]
-        display_labels = test_labels[rand_indices]
-    else:
-        display_data = test_data
-        display_labels = test_labels
-    
+
     data_embedded = autoencoder.encoder(display_data).numpy()
+
+    t_diff = (time.time_ns()-t0)*1e-9
 
     if print_tiempo:
         ut.print_tiempo(t_diff, metodo="Autoencoders")

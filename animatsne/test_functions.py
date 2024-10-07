@@ -8,7 +8,7 @@ import gc
 n_type = np.int16
 first_column = True
 skip_start = True
-usar_rutas_fragmentadas = False
+usar_rutas_fragmentadas = True
 #-----------------------------------------------------------------
 if usar_rutas_fragmentadas:
     routes_train = ["tests/data/mnist_train_p{}.csv".format(i) for i in range(7)]
@@ -19,7 +19,7 @@ else:
     data_test, labels_test = utils.read_csv("tests/data_full/mnist_test.csv", labels_in_first_column=first_column, num_type=n_type, skip_start_row=skip_start)
 #-----------------------------------------------------------------
 seed = 2
-n_samples = 300
+n_samples = 5000
 index_start = 0
 rng = np.random.default_rng(seed)
 usar_conjunto_entero = True
@@ -44,12 +44,10 @@ string_titulo = "Resultado de {} con {} muestras"
 
 parametros_train = [data_entrenamiento, labels_entrenamiento]
 parametros_print = {
-    "display": False,
+    "display": True,
     "print_tiempo": True,
     "trust": n_samples<=40000,
 }
-
-
 
 if n_samples>5000:
     parametros_print["display"] = False
